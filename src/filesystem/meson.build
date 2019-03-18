@@ -1,0 +1,10 @@
+
+subdir('android')
+subdir('cocoa')
+subdir('dummy')
+subdir('emscripten')
+subdir('haiku')
+subdir('nacl')
+subdir('unix')
+subdir('windows')
+subdir('winrt')
