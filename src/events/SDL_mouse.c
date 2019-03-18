@@ -36,6 +36,11 @@
 #include <os2.h>
 #endif
 
+#ifdef __WIN32__
+#include <windows.h>
+#include <winuser.h>
+#endif
+
 /* #define DEBUG_MOUSE */
 
 /* The mouse state */
