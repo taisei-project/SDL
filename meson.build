@@ -254,7 +254,7 @@ dlopen_table = [
 ]
 
 if get_option('prefer_dlopen')
-    find_dylib_name = find_program('./find-dylib-name.py', check : true)
+    find_dylib_name = find_program('./find-dylib-name.py', required : true)
 
     foreach dep_entry : dlopen_table
         dep = get_variable(dep_entry['dep_var'])
