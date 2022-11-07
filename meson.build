@@ -653,8 +653,16 @@ endif
 
 cdata.set('HAVE_LIBC', 1)
 
-core_args = ['-DUSING_GENERATED_CONFIG_H']
-core_ldflags = []
+if platform_is_emscripten
+    # USE_SDL is 1 by default for some reason. This interferes with our build.
+    # https://github.com/emscripten-core/emscripten/issues/18072
+    emcc_args = ['-sUSE_SDL=0']
+else
+    emcc_args = []
+endif
+
+core_args = ['-DUSING_GENERATED_CONFIG_H'] + emcc_args
+core_ldflags = [] + emcc_args
 
 cdata.set10('HAVE_GCC_ATOMICS',
     cc.links('int main() { int x; return __atomic_load_n(&x, __ATOMIC_SEQ_CST); }',
@@ -1027,18 +1035,22 @@ if use_sdl2main
         link_with : sdl2,
         link_whole : sdl2main,
         include_directories : core_inc,
-        compile_args : main_c_args,
+        compile_args : main_c_args + emcc_args,
+        link_args : emcc_args,
     )
 
     sdl2main_dep = declare_dependency(
         link_whole : sdl2main,
         include_directories : core_inc,
-        compile_args : main_c_args,
+        compile_args : main_c_args + emcc_args,
+        link_args : emcc_args,
     )
 else
     sdl2_dep = declare_dependency(
         link_with : sdl2,
         include_directories : core_inc,
+        compile_args : emcc_args,
+        link_args : emcc_args,
     )
 endif
 
