@@ -551,8 +551,6 @@ endif
 check_symbols = [
     ['O_CLOEXEC', 'fcntl.h'],
     ['M_PI', 'math.h'],
-    ['libdecor_frame_get_max_content_size', 'libdecor.h'],
-    ['libdecor_frame_get_min_content_size', 'libdecor.h'],
 ]
 
 foreach entry : check_symbols
