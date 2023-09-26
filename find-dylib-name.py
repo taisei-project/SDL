@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import pathlib
+import glob
 
 
 def verbose(*args):
@@ -62,6 +63,7 @@ def main(argv):
 
     o = subprocess.run(cc + ['-print-search-dirs'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     libdirs = re.search(r'[\^\n]libraries: =(.*)', o.stdout.decode('utf-8')).group(1).strip().split(os.pathsep)
+    libdirs += ldconf_dirs()
 
     verbose('Search path:\n\t' + '\n\t'.join(libdirs))
 
