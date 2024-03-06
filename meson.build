@@ -227,6 +227,14 @@ if platform_is_unixlike
     xrandr_dep = dependency('xrandr', required : opt_video_x11)
     xfixes_dep = dependency('xfixes', required : opt_video_x11)
     xcursor_dep = dependency('xcursor', required : opt_video_x11)
+    if not xext_dep.found() or not xi_dep.found() or not xrandr_dep.found() or not xfixes_dep.found() or not xcursor_dep.found()
+      x11_dep = fake_dep
+      xext_dep = fake_dep
+      xi_dep = fake_dep
+      xrandr_dep = fake_dep
+      xfixes_dep = fake_dep
+      xcursor_dep = fake_dep
+    endif
 else
     x11_dep = fake_dep
     xext_dep = fake_dep
@@ -238,7 +246,12 @@ else
 endif
 
 threads_dep = dependency('threads', required : opt_threads)
-libusb_dep = dependency('libusb-1.0', required : opt_hidapi)
+
+if platform_is_apple
+    libusb_dep = fake_dep
+else
+    libusb_dep = dependency('libusb-1.0', required : opt_hidapi)
+endif
 
 if platform_is_unixlike
     dbus_dep = dependency('dbus-1', required : false).partial_dependency(
@@ -570,11 +583,11 @@ if cc.has_header_symbol('pthread.h', 'PTHREAD_MUTEX_RECURSIVE_NP', prefix : sane
 endif
 
 cdata.set('SDL_HAVE_LIBDECOR_GET_MIN_MAX',
-    wayland_libdecor_dep.found() and 
+    wayland_libdecor_dep.found() and
     cc.has_header_symbol(
         'libdecor.h', 'libdecor_frame_get_max_content_size',
         prefix : sane_std, dependencies : core_deps + wayland_libdecor_dep
-    ) and 
+    ) and
     cc.has_header_symbol(
         'libdecor.h', 'libdecor_frame_get_min_content_size',
         prefix : sane_std, dependencies : core_deps + wayland_libdecor_dep
