@@ -24,6 +24,8 @@
 #include "../../video/SDL_pixels_c.h"
 #include "../SDL_d3dmath.h"
 #include "../SDL_sysrender.h"
+#include "SDL_gpu_util.h"
+#include "SDL_pipeline_gpu.h"
 #include "SDL_shaders_gpu.h"
 
 // TODO YUV
@@ -44,6 +46,7 @@ typedef struct GPU_RenderData
 {
     SDL_GpuDevice *device;
     GPU_Shaders shaders;
+    GPU_PipelineCache pipeline_cache;
     SDL_GpuFence *present_fence;
 
     struct
@@ -103,57 +106,6 @@ typedef struct GPU_TextureData
 #endif
 } GPU_TextureData;
 
-enum
-{
-    BLEND_INVALID = 0x7fffffff,
-};
-
-static SDL_GpuBlendFactor GetBlendFunc(SDL_BlendFactor factor)
-{
-    switch (factor) {
-    case SDL_BLENDFACTOR_ZERO:
-        return SDL_GPU_BLENDFACTOR_ZERO;
-    case SDL_BLENDFACTOR_ONE:
-        return SDL_GPU_BLENDFACTOR_ONE;
-    case SDL_BLENDFACTOR_SRC_COLOR:
-        return SDL_GPU_BLENDFACTOR_SRC_COLOR;
-    case SDL_BLENDFACTOR_ONE_MINUS_SRC_COLOR:
-        return SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_COLOR;
-    case SDL_BLENDFACTOR_SRC_ALPHA:
-        return SDL_GPU_BLENDFACTOR_SRC_ALPHA;
-    case SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA:
-        return SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    case SDL_BLENDFACTOR_DST_COLOR:
-        return SDL_GPU_BLENDFACTOR_DST_COLOR;
-    case SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR:
-        return SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_COLOR;
-    case SDL_BLENDFACTOR_DST_ALPHA:
-        return SDL_GPU_BLENDFACTOR_DST_ALPHA;
-    case SDL_BLENDFACTOR_ONE_MINUS_DST_ALPHA:
-        return SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA;
-    default:
-        return BLEND_INVALID;
-    }
-}
-
-static SDL_GpuBlendOp GetBlendEquation(SDL_BlendOperation operation)
-{
-    switch (operation) {
-    case SDL_BLENDOPERATION_ADD:
-        return SDL_GPU_BLENDOP_ADD;
-    case SDL_BLENDOPERATION_SUBTRACT:
-        return SDL_GPU_BLENDOP_SUBTRACT;
-    case SDL_BLENDOPERATION_REV_SUBTRACT:
-        return SDL_GPU_BLENDOP_REVERSE_SUBTRACT;
-    case SDL_BLENDOPERATION_MINIMUM:
-        return SDL_GPU_BLENDOP_MIN;
-    case SDL_BLENDOPERATION_MAXIMUM:
-        return SDL_GPU_BLENDOP_MAX;
-    default:
-        return BLEND_INVALID;
-    }
-}
-
 static SDL_bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blendMode)
 {
     SDL_BlendFactor srcColorFactor = SDL_GetBlendModeSrcColorFactor(blendMode);
@@ -163,12 +115,12 @@ static SDL_bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blen
     SDL_BlendFactor dstAlphaFactor = SDL_GetBlendModeDstAlphaFactor(blendMode);
     SDL_BlendOperation alphaOperation = SDL_GetBlendModeAlphaOperation(blendMode);
 
-    if (GetBlendFunc(srcColorFactor) == BLEND_INVALID ||
-        GetBlendFunc(srcAlphaFactor) == BLEND_INVALID ||
-        GetBlendEquation(colorOperation) == BLEND_INVALID ||
-        GetBlendFunc(dstColorFactor) == BLEND_INVALID ||
-        GetBlendFunc(dstAlphaFactor) == BLEND_INVALID ||
-        GetBlendEquation(alphaOperation) == BLEND_INVALID) {
+    if (GPU_ConvertBlendFactor(srcColorFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GPU_ConvertBlendFactor(srcAlphaFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GPU_ConvertBlendOperation(colorOperation) == SDL_GPU_BLENDOP_INVALID ||
+        GPU_ConvertBlendFactor(dstColorFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GPU_ConvertBlendFactor(dstAlphaFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
+        GPU_ConvertBlendOperation(alphaOperation) == SDL_GPU_BLENDOP_INVALID) {
         return SDL_FALSE;
     }
 
@@ -652,85 +604,6 @@ static int GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SDL
     return 0;
 }
 
-static SDL_GpuGraphicsPipeline *SetupPipeline(
-    GPU_RenderData *data,
-    const SDL_RenderCommand *cmd,
-    GPU_VertexShaderID vert_shader,
-    GPU_FragmentShaderID frag_shader,
-    SDL_GpuPrimitiveType prim_type)
-{
-    // TODO pipeline cache
-
-    SDL_GpuColorAttachmentDescription ad = { 0 };
-
-    if (data->state.render_target) {
-        ad.format = ((GPU_TextureData *)data->state.render_target->internal)->format;
-    } else {
-        ad.format = data->swapchain.format;
-    }
-
-    SDL_BlendMode blend = cmd->data.draw.blend;
-    ad.blendState.blendEnable = cmd->data.draw.blend != 0;
-    ad.blendState.colorWriteMask = 0xF;
-    ad.blendState.alphaBlendOp = GetBlendEquation(SDL_GetBlendModeAlphaOperation(blend));
-    ad.blendState.dstAlphaBlendFactor = GetBlendFunc(SDL_GetBlendModeDstAlphaFactor(blend));
-    ad.blendState.srcAlphaBlendFactor = GetBlendFunc(SDL_GetBlendModeSrcAlphaFactor(blend));
-    ad.blendState.colorBlendOp = GetBlendEquation(SDL_GetBlendModeColorOperation(blend));
-    ad.blendState.dstColorBlendFactor = GetBlendFunc(SDL_GetBlendModeDstColorFactor(blend));
-    ad.blendState.srcColorBlendFactor = GetBlendFunc(SDL_GetBlendModeSrcColorFactor(blend));
-
-    SDL_GpuGraphicsPipelineCreateInfo pci = { 0 };
-    pci.attachmentInfo.hasDepthStencilAttachment = SDL_FALSE;
-    pci.attachmentInfo.colorAttachmentCount = 1;
-    pci.attachmentInfo.colorAttachmentDescriptions = &ad;
-    pci.vertexShader = GPU_GetVertexShader(&data->shaders, vert_shader);
-    pci.fragmentShader = GPU_GetFragmentShader(&data->shaders, frag_shader);
-    pci.multisampleState.sampleCount = SDL_GPU_SAMPLECOUNT_1;
-    pci.multisampleState.sampleMask = 0xFFFF;
-    pci.primitiveType = prim_type;
-
-    pci.rasterizerState.cullMode = SDL_GPU_CULLMODE_NONE;
-    pci.rasterizerState.fillMode = SDL_GPU_FILLMODE_FILL;
-    pci.rasterizerState.frontFace = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
-
-    SDL_GpuVertexBinding bind = { 0 };
-
-    Uint32 num_attribs = 0;
-    SDL_GpuVertexAttribute attribs[4] = { 0 };
-
-    /* Position */
-    attribs[num_attribs].location = num_attribs;
-    attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR2;
-    attribs[num_attribs].offset = bind.stride;
-    bind.stride += 2 * sizeof(float);
-    num_attribs++;
-
-    if (prim_type == SDL_GPU_PRIMITIVETYPE_TRIANGLELIST) {
-        /* Color */
-        attribs[num_attribs].location = num_attribs;
-        attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR4;
-        attribs[num_attribs].offset = bind.stride;
-        bind.stride += 4 * sizeof(float);
-        num_attribs++;
-
-        /* UVs */
-        if (cmd->data.draw.texture) {
-            attribs[num_attribs].location = num_attribs;
-            attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR2;
-            attribs[num_attribs].offset = bind.stride;
-            bind.stride += 2 * sizeof(float);
-            num_attribs++;
-        }
-    }
-
-    pci.vertexInputState.vertexAttributeCount = num_attribs;
-    pci.vertexInputState.vertexAttributes = attribs;
-    pci.vertexInputState.vertexBindingCount = 1;
-    pci.vertexInputState.vertexBindings = &bind;
-
-    return SDL_GpuCreateGraphicsPipeline(data->device, &pci);
-}
-
 static void GPU_InvalidateCachedState(SDL_Renderer *renderer)
 {
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
@@ -819,7 +692,24 @@ static void Draw(
         f_shader = FRAG_SHADER_COLOR;
     }
 
-    SDL_GpuGraphicsPipeline *pipe = SetupPipeline(data, cmd, v_shader, f_shader, prim);
+    GPU_PipelineParameters pipe_params = { 0 };
+    pipe_params.blend_mode = cmd->data.draw.blend;
+    pipe_params.vert_shader = v_shader;
+    pipe_params.frag_shader = f_shader;
+    pipe_params.primitive_type = prim;
+
+    if (data->state.render_target) {
+        pipe_params.attachment_format = ((GPU_TextureData *)data->state.render_target->internal)->format;
+    } else {
+        pipe_params.attachment_format = data->swapchain.format;
+    }
+
+    SDL_GpuGraphicsPipeline *pipe = GPU_GetPipeline(&data->pipeline_cache, &data->shaders, data->device, &pipe_params);
+
+    if (!pipe) {
+        return;
+    }
+
     SDL_GpuBindGraphicsPipeline(data->state.render_pass, pipe);
 
     if (tdata) {
@@ -836,8 +726,6 @@ static void Draw(
     SDL_GpuBindVertexBuffers(pass, 0, &buffer_bind, 1);
     PushUniforms(data, cmd);
     SDL_GpuDrawPrimitives(data->state.render_pass, 0, num_verts);
-
-    SDL_GpuReleaseGraphicsPipeline(data->device, pipe); // TODO remove when we have cache
 }
 
 static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
@@ -1149,6 +1037,7 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
     SDL_GpuReleaseTransferBuffer(data->device, data->vertices.transfer_buf);
     SDL_GpuReleaseBuffer(data->device, data->vertices.buffer);
 
+    GPU_DestroyPipelineCache(&data->pipeline_cache);
     GPU_ReleaseShaders(&data->shaders, data->device);
     SDL_GpuDestroyDevice(data->device);
 
@@ -1276,6 +1165,10 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     }
 
     if (GPU_InitShaders(&data->shaders, data->device) != 0) {
+        goto error;
+    }
+
+    if (GPU_InitPipelineCache(&data->pipeline_cache, data->device) != 0) {
         goto error;
     }
 
