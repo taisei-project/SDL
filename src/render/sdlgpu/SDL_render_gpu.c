@@ -357,6 +357,7 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
 
     SDL_GpuUploadToTexture(cpass, &tex_src, &tex_dst, SDL_TRUE);
     SDL_GpuEndCopyPass(cpass);
+    SDL_GpuReleaseTransferBuffer(renderdata->device, tbuf);
 
 #if SDL_HAVE_YUV
     if (data->yuv) {
