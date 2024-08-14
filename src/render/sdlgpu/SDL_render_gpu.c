@@ -62,7 +62,6 @@ typedef struct GPU_RenderData
     struct
     {
         SDL_GpuTransferBuffer *transfer_buf;
-        void *mapped_transfer_buf;
         SDL_GpuBuffer *buffer;
     } vertices;
 
@@ -735,7 +734,10 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
     }
 
     SDL_assert(vertsize <= VERTEX_BUFFER_SIZE);
-    memcpy(data->vertices.mapped_transfer_buf, vertices, vertsize);
+
+    void *staging_buf = SDL_GpuMapTransferBuffer(data->device, data->vertices.transfer_buf, SDL_TRUE);
+    memcpy(staging_buf, vertices, vertsize);
+    SDL_GpuUnmapTransferBuffer(data->device, data->vertices.transfer_buf);
 
     SDL_GpuCopyPass *pass = SDL_GpuBeginCopyPass(data->state.command_buffer);
 
@@ -1033,7 +1035,6 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
         SDL_GpuUnclaimWindow(data->device, renderer->window);
     }
 
-    SDL_GpuUnmapTransferBuffer(data->device, data->vertices.transfer_buf);
     SDL_GpuReleaseTransferBuffer(data->device, data->vertices.transfer_buf);
     SDL_GpuReleaseBuffer(data->device, data->vertices.buffer);
 
@@ -1070,8 +1071,6 @@ static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
     if (!data->vertices.transfer_buf) {
         return -1;
     }
-
-    data->vertices.mapped_transfer_buf = SDL_GpuMapTransferBuffer(data->device, data->vertices.transfer_buf, SDL_FALSE);
 
     return 0;
 }
