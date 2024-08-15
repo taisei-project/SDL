@@ -888,6 +888,7 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
             SDL_RenderCommand *finalcmd = cmd;
             SDL_RenderCommand *nextcmd = cmd->next;
             Uint32 count = (Uint32)cmd->data.draw.count;
+            Uint32 offset = (Uint32)cmd->data.draw.first;
 
             while (nextcmd) {
                 const SDL_RenderCommandType nextcmdtype = nextcmd->command;
@@ -902,8 +903,6 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
                 }
                 nextcmd = nextcmd->next;
             }
-
-            Uint32 offset = (Uint32)cmd->data.draw.first;
 
             SDL_GpuPrimitiveType prim = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST; /* SDL_RENDERCMD_GEOMETRY */
             if (thiscmdtype == SDL_RENDERCMD_DRAW_POINTS) {
