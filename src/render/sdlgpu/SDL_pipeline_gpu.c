@@ -135,7 +135,6 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
         have_attr_uv = SDL_TRUE;
         SDL_FALLTHROUGH;
     case VERT_SHADER_TRI_COLOR:
-    case VERT_SHADER_LINEPOINT:
         have_attr_color = SDL_TRUE;
         SDL_FALLTHROUGH;
     default:
