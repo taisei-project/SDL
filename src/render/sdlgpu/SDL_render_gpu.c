@@ -1045,7 +1045,29 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
 
 static int GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
 {
-    return SDL_Unsupported(); // TODO
+    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
+
+    switch (vsync) {
+        case 0:
+            data->swapchain.present_mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
+
+            if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
+                data->swapchain.present_mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
+            }
+
+            if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
+                data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+            }
+
+            return 0;
+
+        case 1:
+            data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+            return 0;
+
+        default:
+            return SDL_Unsupported();
+    }
 }
 
 static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
@@ -1177,14 +1199,6 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
         goto error;
     }
 
-    data->swapchain.composition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
-    data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
-
-    if (!SDL_GpuClaimWindow(data->device, window, data->swapchain.composition, data->swapchain.present_mode)) {
-        goto error;
-    }
-
-
     renderer->SupportsBlendMode = GPU_SupportsBlendMode;
     renderer->CreateTexture = GPU_CreateTexture;
     renderer->UpdateTexture = GPU_UpdateTexture;
@@ -1210,8 +1224,18 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     renderer->SetVSync = GPU_SetVSync;
     GPU_InvalidateCachedState(renderer);
     renderer->window = window;
-
     renderer->name = GPU_RenderDriver.name;
+
+    data->swapchain.composition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
+    data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+
+    int vsync = (int)SDL_GetNumberProperty(create_props, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, 0);
+    GPU_SetVSync(renderer, vsync);
+
+    if (!SDL_GpuClaimWindow(data->device, window, data->swapchain.composition, data->swapchain.present_mode)) {
+        goto error;
+    }
+
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ARGB8888);
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ABGR8888);
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_XRGB8888);
