@@ -1184,8 +1184,6 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
         goto error;
     }
 
-    data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
-    RenewSwapchain(renderer);
 
     renderer->SupportsBlendMode = GPU_SupportsBlendMode;
     renderer->CreateTexture = GPU_CreateTexture;
@@ -1248,6 +1246,9 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     data->state.draw_color.g = 1.0f;
     data->state.draw_color.b = 1.0f;
     data->state.draw_color.a = 1.0f;
+
+    data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
+    RenewSwapchain(renderer);
 
     return 0;
 
