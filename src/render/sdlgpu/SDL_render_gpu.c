@@ -808,14 +808,13 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
         case SDL_RENDERCMD_SETCLIPRECT:
         {
             const SDL_Rect *rect = &cmd->data.cliprect.rect;
-            data->state.scissor.x = rect->x;
-            data->state.scissor.y = rect->y;
+            data->state.scissor.x = (int)data->state.viewport.x + rect->x;
+            data->state.scissor.y = (int)data->state.viewport.y + rect->y;
             data->state.scissor.w = rect->w;
             data->state.scissor.h = rect->h;
             data->state.scissor_enabled = cmd->data.cliprect.enabled;
 
             if (data->state.render_pass && cmd->data.cliprect.enabled) {
-                // TODO clear scissor if disabled?
                 SDL_GpuSetScissor(data->state.render_pass, &data->state.scissor);
             }
 
