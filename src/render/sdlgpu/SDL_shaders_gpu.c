@@ -72,6 +72,11 @@ static const GPU_ShaderSources frag_shader_sources[NUM_FRAG_SHADERS] = {
         .num_uniform_buffers = 0,
         SHADER_SPIRV(color_frag_spv)
     },
+    [FRAG_SHADER_TEXTURE_RGB] = {
+        .num_samplers = 1,
+        .num_uniform_buffers = 0,
+        SHADER_SPIRV(texture_rgb_frag_spv)
+    },
     [FRAG_SHADER_TEXTURE_RGBA] = {
         .num_samplers = 1,
         .num_uniform_buffers = 0,

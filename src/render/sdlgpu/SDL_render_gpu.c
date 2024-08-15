@@ -267,12 +267,11 @@ static int GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_P
     }
 #endif
 
-    // FIXME do we need an RGB shader?
-    // if (texture->format == SDL_PIXELFORMAT_ABGR8888 || texture->format == SDL_PIXELFORMAT_ARGB8888) {
-    data->shader = FRAG_SHADER_TEXTURE_RGBA;
-    // } else {
-    // data->shader = FRAG_SHADER_TEXTURE_RGB;
-    // }
+    if (texture->format == SDL_PIXELFORMAT_ABGR8888 || texture->format == SDL_PIXELFORMAT_ARGB8888) {
+        data->shader = FRAG_SHADER_TEXTURE_RGBA;
+    } else {
+        data->shader = FRAG_SHADER_TEXTURE_RGB;
+    }
 
 #if SDL_HAVE_YUV
     if (data->yuv || data->nv12) {
