@@ -32,9 +32,6 @@
 #undef SDL_HAVE_YUV
 #define SDL_HAVE_YUV 0
 
-// FIXME how much is enough? Should we add dynamic resizing?
-#define VERTEX_BUFFER_SIZE (1 << 20)
-
 typedef struct GPU_ShaderUniformData
 {
     Float4X4 mvp;
@@ -67,6 +64,7 @@ typedef struct GPU_RenderData
     {
         SDL_GpuTransferBuffer *transfer_buf;
         SDL_GpuBuffer *buffer;
+        Uint32 buffer_size;
     } vertices;
 
     struct
@@ -767,13 +765,56 @@ static void Draw(
     SDL_GpuDrawPrimitives(data->state.render_pass, 0, num_verts);
 }
 
+static void ReleaseVertexBuffer(GPU_RenderData *data)
+{
+    if (data->vertices.buffer) {
+        SDL_GpuReleaseBuffer(data->device, data->vertices.buffer);
+    }
+
+    if (data->vertices.transfer_buf) {
+        SDL_GpuReleaseTransferBuffer(data->device, data->vertices.transfer_buf);
+    }
+
+    data->vertices.buffer_size = 0;
+}
+
+static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
+{
+    SDL_GpuBufferCreateInfo bci = { 0 };
+    bci.sizeInBytes = size;
+    bci.usageFlags = SDL_GPU_BUFFERUSAGE_VERTEX_BIT;
+
+    data->vertices.buffer = SDL_GpuCreateBuffer(data->device, &bci);
+
+    if (!data->vertices.buffer) {
+        return -1;
+    }
+
+    SDL_GpuTransferBufferCreateInfo tbci = { 0 };
+    tbci.sizeInBytes = size;
+    tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+
+    data->vertices.transfer_buf = SDL_GpuCreateTransferBuffer(data->device, &tbci);
+
+    if (!data->vertices.transfer_buf) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
 {
     if (vertsize == 0) {
         return 0;
     }
 
-    SDL_assert(vertsize <= VERTEX_BUFFER_SIZE);
+    if (vertsize > data->vertices.buffer_size) {
+        ReleaseVertexBuffer(data);
+        if (InitVertexBuffer(data, vertsize) != 0) {
+            return -1;
+        }
+    }
 
     void *staging_buf = SDL_GpuMapTransferBuffer(data->device, data->vertices.transfer_buf, SDL_TRUE);
     memcpy(staging_buf, vertices, vertsize);
@@ -1201,9 +1242,7 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
         SDL_GpuUnclaimWindow(data->device, renderer->window);
     }
 
-    SDL_GpuReleaseTransferBuffer(data->device, data->vertices.transfer_buf);
-    SDL_GpuReleaseBuffer(data->device, data->vertices.buffer);
-
+    ReleaseVertexBuffer(data);
     GPU_DestroyPipelineCache(&data->pipeline_cache);
     GPU_ReleaseShaders(&data->shaders, data->device);
     SDL_GpuDestroyDevice(data->device);
@@ -1236,31 +1275,6 @@ static int GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
     default:
         return SDL_Unsupported();
     }
-}
-
-static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
-{
-    SDL_GpuBufferCreateInfo bci = { 0 };
-    bci.sizeInBytes = size;
-    bci.usageFlags = SDL_GPU_BUFFERUSAGE_VERTEX_BIT;
-
-    data->vertices.buffer = SDL_GpuCreateBuffer(data->device, &bci);
-
-    if (!data->vertices.buffer) {
-        return -1;
-    }
-
-    SDL_GpuTransferBufferCreateInfo tbci = { 0 };
-    tbci.sizeInBytes = size;
-    tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-
-    data->vertices.transfer_buf = SDL_GpuCreateTransferBuffer(data->device, &tbci);
-
-    if (!data->vertices.transfer_buf) {
-        return -1;
-    }
-
-    return 0;
 }
 
 static int InitSamplers(GPU_RenderData *data)
@@ -1359,7 +1373,8 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
         goto error;
     }
 
-    if (InitVertexBuffer(data, VERTEX_BUFFER_SIZE) != 0) {
+    // XXX what's a good initial size?
+    if (InitVertexBuffer(data, 1 << 16) != 0) {
         goto error;
     }
 
