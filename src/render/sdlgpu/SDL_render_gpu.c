@@ -1029,31 +1029,57 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
     SDL_free(data);
 }
 
-static int GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
+static int ChoosePresentMode(SDL_GpuDevice *device, SDL_Window *window, const int vsync, SDL_GpuPresentMode *out_mode)
 {
-    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
+    SDL_GpuPresentMode mode;
 
     switch (vsync) {
     case 0:
-        data->swapchain.present_mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
+        mode = SDL_GPU_PRESENTMODE_MAILBOX;
 
-        if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
-            data->swapchain.present_mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
+        if (!SDL_GpuSupportsPresentMode(device, window, mode)) {
+            mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
         }
 
-        if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
-            data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+        if (!SDL_GpuSupportsPresentMode(device, window, mode)) {
+            mode = SDL_GPU_PRESENTMODE_VSYNC;
         }
 
-        return 0;
+        // FIXME should we return an error if both mailbox and immediate fail?
+        break;
 
     case 1:
-        data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
-        return 0;
+        mode = SDL_GPU_PRESENTMODE_VSYNC;
+        break;
 
     default:
         return SDL_Unsupported();
     }
+
+    *out_mode = mode;
+    return 0;
+}
+
+static int GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
+{
+    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
+    SDL_GpuPresentMode mode;
+
+    if (ChoosePresentMode(data->device, renderer->window, vsync, &mode) != 0) {
+        return -1;
+    }
+
+    if (mode != data->swapchain.present_mode) {
+        // XXX returns bool instead of SDL-style error code
+        if (SDL_GpuSetSwapchainParameters(data->device, renderer->window, data->swapchain.composition, mode)) {
+            data->swapchain.present_mode = mode;
+            return 0;
+        } else {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 static int InitSamplers(GPU_RenderData *data)
@@ -1188,7 +1214,8 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
 
     int vsync = (int)SDL_GetNumberProperty(create_props, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, 0);
-    GPU_SetVSync(renderer, vsync);
+    data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+    ChoosePresentMode(data->device, window, vsync, &data->swapchain.present_mode);
 
     if (!SDL_GpuClaimWindow(data->device, window, data->swapchain.composition, data->swapchain.present_mode)) {
         goto error;
