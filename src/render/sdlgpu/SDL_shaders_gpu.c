@@ -24,8 +24,6 @@
 
 #include "SDL_shaders_gpu.h"
 
-#include "shaders/spir-v.h"
-
 /* SDL_Gpu shader implementation */
 
 typedef struct GPU_ShaderModuleSource
@@ -35,11 +33,58 @@ typedef struct GPU_ShaderModuleSource
     SDL_GpuShaderFormat format;
 } GPU_ShaderModuleSource;
 
+// FIXME Please fix this in the build system!
+#ifndef SDL_GPU_VULKAN
+#warning SDL_GPU_VULKAN was not defined, please fix
+#define SDL_GPU_VULKAN 0
+#endif
+#ifndef SDL_GPU_D3D11
+#warning SDL_GPU_D3D11 was not defined, please fix
+#define SDL_GPU_D3D11 0
+#endif
+#ifndef SDL_GPU_D3D12
+#warning SDL_GPU_D3D12 was not defined, please fix
+#define SDL_GPU_D3D12 0
+#endif
+#ifndef SDL_GPU_METAL
+#warning SDL_GPU_METAL was not defined, please fix
+#define SDL_GPU_METAL 0
+#endif
+
+#if SDL_GPU_VULKAN
 #define IF_VULKAN(...) __VA_ARGS__
+#include "shaders/spir-v.h"
+#else
+#define IF_VULKAN(...)
+#endif
+
+#if SDL_GPU_D3D11
+#define IF_D3D11(...) __VA_ARGS__
+#include "shaders/dxbc50.h"
+#else
+#define IF_D3D11(...)
+#endif
+
+#if SDL_GPU_D3D12
+#define IF_D3D12(...) __VA_ARGS__
+#include "shaders/dxbc51.h"
+#else
+#define IF_D3D12(...)
+#endif
+
+#if SDL_GPU_METAL
+#define IF_METAL(...) __VA_ARGS__
+#include "shaders/metal.h"
+#else
+#define IF_METAL(...)
+#endif
 
 typedef struct GPU_ShaderSources
 {
     IF_VULKAN(GPU_ShaderModuleSource spirv;)
+    IF_D3D11(GPU_ShaderModuleSource dxbc50;)
+    IF_D3D12(GPU_ShaderModuleSource dxbc51;)
+    IF_METAL(GPU_ShaderModuleSource msl;)
     unsigned int num_samplers;
     unsigned int num_uniform_buffers;
 } GPU_ShaderSources;
@@ -47,22 +92,40 @@ typedef struct GPU_ShaderSources
 #define SHADER_SPIRV(code) \
     IF_VULKAN(.spirv = { code, sizeof(code), SDL_GPU_SHADERFORMAT_SPIRV }, )
 
+#define SHADER_DXBC50(code) \
+    IF_D3D11(.dxbc50 = { code, sizeof(code), SDL_GPU_SHADERFORMAT_DXBC }, )
+
+#define SHADER_DXBC51(code) \
+    IF_D3D12(.dxbc51 = { code, sizeof(code), SDL_GPU_SHADERFORMAT_DXBC }, )
+
+#define SHADER_METAL(code) \
+    IF_METAL(.msl = { code, sizeof(code), SDL_GPU_SHADERFORMAT_MSL }, )
+
 /* clang-format off */
 static const GPU_ShaderSources vert_shader_sources[NUM_VERT_SHADERS] = {
     [VERT_SHADER_LINEPOINT] = {
         .num_samplers = 0,
         .num_uniform_buffers = 1,
         SHADER_SPIRV(linepoint_vert_spv)
+        SHADER_DXBC50(linepoint_vert_sm50_dxbc)
+        SHADER_DXBC51(linepoint_vert_sm51_dxbc)
+        SHADER_METAL(linepoint_vert_metal)
     },
     [VERT_SHADER_TRI_COLOR] = {
         .num_samplers = 0,
         .num_uniform_buffers = 1,
         SHADER_SPIRV(tri_color_vert_spv)
+        SHADER_DXBC50(tri_color_vert_sm50_dxbc)
+        SHADER_DXBC51(tri_color_vert_sm51_dxbc)
+        SHADER_METAL(tri_color_vert_metal)
     },
     [VERT_SHADER_TRI_TEXTURE] = {
         .num_samplers = 0,
         .num_uniform_buffers = 1,
         SHADER_SPIRV(tri_texture_vert_spv)
+        SHADER_DXBC50(tri_texture_vert_sm50_dxbc)
+        SHADER_DXBC51(tri_texture_vert_sm51_dxbc)
+        SHADER_METAL(tri_texture_vert_metal)
     },
 };
 
@@ -71,16 +134,25 @@ static const GPU_ShaderSources frag_shader_sources[NUM_FRAG_SHADERS] = {
         .num_samplers = 0,
         .num_uniform_buffers = 0,
         SHADER_SPIRV(color_frag_spv)
+        SHADER_DXBC50(color_frag_sm50_dxbc)
+        SHADER_DXBC51(color_frag_sm51_dxbc)
+        SHADER_METAL(color_frag_metal)
     },
     [FRAG_SHADER_TEXTURE_RGB] = {
         .num_samplers = 1,
         .num_uniform_buffers = 0,
         SHADER_SPIRV(texture_rgb_frag_spv)
+        SHADER_DXBC50(texture_rgb_frag_sm50_dxbc)
+        SHADER_DXBC51(texture_rgb_frag_sm51_dxbc)
+        SHADER_METAL(texture_rgb_frag_metal)
     },
     [FRAG_SHADER_TEXTURE_RGBA] = {
         .num_samplers = 1,
         .num_uniform_buffers = 0,
         SHADER_SPIRV(texture_rgba_frag_spv)
+        SHADER_DXBC50(texture_rgba_frag_sm50_dxbc)
+        SHADER_DXBC51(texture_rgba_frag_sm51_dxbc)
+        SHADER_METAL(texture_rgb_frag_metal)
     },
 };
 /* clang-format on */
@@ -88,11 +160,15 @@ static const GPU_ShaderSources frag_shader_sources[NUM_FRAG_SHADERS] = {
 static SDL_GpuShader *CompileShader(const GPU_ShaderSources *sources, SDL_GpuDevice *device, SDL_GpuShaderStage stage)
 {
     const GPU_ShaderModuleSource *sms = NULL;
+    SDL_GpuDriver driver = SDL_GpuGetDriver(device);
 
-    switch (SDL_GpuGetDriver(device)) {
-    case SDL_GPU_DRIVER_VULKAN:
-        sms = &sources->spirv;
-        break;
+    switch (driver) {
+        /* clang-format off */
+        IF_VULKAN(  case SDL_GPU_DRIVER_VULKAN: sms = &sources->spirv;  break;)
+        IF_D3D11(   case SDL_GPU_DRIVER_D3D11:  sms = &sources->dxbc50; break;)
+        IF_D3D12(   case SDL_GPU_DRIVER_D3D12:  sms = &sources->dxbc51; break;)
+        IF_METAL(   case SDL_GPU_DRIVER_METAL:  sms = &sources->msl;    break;)
+        /* clang-format on */
 
     default:
         SDL_SetError("Unsupported GPU backend");
@@ -103,7 +179,8 @@ static SDL_GpuShader *CompileShader(const GPU_ShaderSources *sources, SDL_GpuDev
     sci.code = sms->code;
     sci.codeSize = sms->code_len;
     sci.format = sms->format;
-    sci.entryPointName = "main"; // XXX is this guaranteed on all backends?
+    /* FIXME not sure if this is correct */
+    sci.entryPointName = driver == SDL_GPU_DRIVER_METAL ? "main0" : "main";
     sci.samplerCount = sources->num_samplers;
     sci.uniformBufferCount = sources->num_uniform_buffers;
     sci.stage = stage;
@@ -161,6 +238,13 @@ SDL_GpuShader *GPU_GetFragmentShader(GPU_Shaders *shaders, GPU_FragmentShaderID 
     SDL_GpuShader *shader = shaders->frag_shaders[id];
     SDL_assert(shader != NULL);
     return shader;
+}
+
+void GPU_FillSupportedShaderFormats(SDL_PropertiesID props)
+{
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_SPIRV_BOOL, SDL_GPU_VULKAN);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXBC_BOOL, SDL_GPU_D3D11 || SDL_GPU_D3D12);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_MSL_BOOL, SDL_GPU_METAL);
 }
 
 #endif /* SDL_VIDEO_RENDER_OGL */

@@ -1,0 +1,6 @@
+#include "linepoint.vert.sm51.dxbc.h"
+#include "tri_color.vert.sm51.dxbc.h"
+#include "tri_texture.vert.sm51.dxbc.h"
+#include "color.frag.sm51.dxbc.h"
+#include "texture_rgba.frag.sm51.dxbc.h"
+#include "texture_rgb.frag.sm51.dxbc.h"

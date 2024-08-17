@@ -55,6 +55,7 @@ struct GPU_Shaders
 
 typedef struct GPU_Shaders GPU_Shaders;
 
+void GPU_FillSupportedShaderFormats(SDL_PropertiesID props);
 extern int GPU_InitShaders(GPU_Shaders *shaders, SDL_GpuDevice *device);
 extern void GPU_ReleaseShaders(GPU_Shaders *shaders, SDL_GpuDevice *device);
 extern SDL_GpuShader *GPU_GetVertexShader(GPU_Shaders *shaders, GPU_VertexShaderID id);

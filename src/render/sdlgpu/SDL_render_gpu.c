@@ -1137,7 +1137,7 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     }
 
     SDL_SetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_DEBUGMODE_BOOL, SDL_TRUE);
-    SDL_SetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_SPIRV_BOOL, SDL_TRUE);
+    GPU_FillSupportedShaderFormats(create_props);
     data->device = SDL_GpuCreateDeviceWithProperties(create_props);
 
     if (!data->device) {
