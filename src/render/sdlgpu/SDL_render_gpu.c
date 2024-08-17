@@ -82,15 +82,11 @@ typedef struct GPU_RenderData
 typedef struct GPU_TextureData
 {
     SDL_GpuTexture *texture;
-    Uint32 width;
-    Uint32 height;
     SDL_GpuTextureFormat format;
     GPU_FragmentShaderID shader;
-    const float *shader_params;
     void *pixels;
     int pitch;
     SDL_Rect locked_rect;
-    SDL_bool sampler_outdated;
 } GPU_TextureData;
 
 static SDL_bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blendMode)
