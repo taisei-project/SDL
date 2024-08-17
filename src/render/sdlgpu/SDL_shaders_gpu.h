@@ -50,7 +50,6 @@ struct GPU_Shaders
 {
     SDL_GpuShader *vert_shaders[NUM_VERT_SHADERS];
     SDL_GpuShader *frag_shaders[NUM_FRAG_SHADERS];
-    // const float *shader_params[NUM_SHADERS];  // ???
 };
 
 typedef struct GPU_Shaders GPU_Shaders;
