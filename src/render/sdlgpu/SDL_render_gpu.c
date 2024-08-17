@@ -55,6 +55,10 @@ typedef struct GPU_RenderData
         SDL_GpuTextureFormat format;
         Uint32 width;
         Uint32 height;
+    } backbuffer;
+
+    struct
+    {
         SDL_GpuSwapchainComposition composition;
         SDL_GpuPresentMode present_mode;
     } swapchain;
@@ -126,14 +130,14 @@ static SDL_bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blen
     return SDL_TRUE;
 }
 
-static SDL_GpuTextureFormat PixFormatToTexFormat(Uint32 pixel_format)
+static SDL_GpuTextureFormat PixFormatToTexFormat(SDL_PixelFormat pixel_format)
 {
     switch (pixel_format) {
-    case SDL_PIXELFORMAT_ARGB8888:
-    case SDL_PIXELFORMAT_XRGB8888:
+    case SDL_PIXELFORMAT_BGRA32:
+    case SDL_PIXELFORMAT_BGRX32:
         return SDL_GPU_TEXTUREFORMAT_B8G8R8A8;
-    case SDL_PIXELFORMAT_ABGR8888:
-    case SDL_PIXELFORMAT_XBGR8888:
+    case SDL_PIXELFORMAT_RGBA32:
+    case SDL_PIXELFORMAT_RGBX32:
         return SDL_GPU_TEXTUREFORMAT_R8G8B8A8;
     case SDL_PIXELFORMAT_YV12:
     case SDL_PIXELFORMAT_IYUV:
@@ -143,6 +147,42 @@ static SDL_GpuTextureFormat PixFormatToTexFormat(Uint32 pixel_format)
     case SDL_PIXELFORMAT_UYVY:           // YUV FIXME
     default:
         return SDL_GPU_TEXTUREFORMAT_INVALID;
+    }
+}
+
+static SDL_PixelFormat TexFormatToPixFormat(SDL_GpuTextureFormat tex_format)
+{
+    switch (tex_format) {
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8:
+        return SDL_PIXELFORMAT_RGBA32;
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8:
+        return SDL_PIXELFORMAT_BGRA32;
+    case SDL_GPU_TEXTUREFORMAT_B5G6R5:
+        return SDL_PIXELFORMAT_BGR565;
+    case SDL_GPU_TEXTUREFORMAT_B5G5R5A1:
+        return SDL_PIXELFORMAT_BGRA5551;
+    case SDL_GPU_TEXTUREFORMAT_B4G4R4A4:
+        return SDL_PIXELFORMAT_BGRA4444;
+    case SDL_GPU_TEXTUREFORMAT_R10G10B10A2:
+        return SDL_PIXELFORMAT_ABGR2101010;
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16:
+        return SDL_PIXELFORMAT_RGBA64;
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SNORM:
+        return SDL_PIXELFORMAT_RGBA32;
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_SFLOAT:
+        return SDL_PIXELFORMAT_RGBA64_FLOAT;
+    case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_SFLOAT:
+        return SDL_PIXELFORMAT_RGBA128_FLOAT;
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UINT:
+        return SDL_PIXELFORMAT_RGBA32;
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UINT:
+        return SDL_PIXELFORMAT_RGBA64;
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SRGB:
+        return SDL_PIXELFORMAT_RGBA32;
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB:
+        return SDL_PIXELFORMAT_BGRA32;
+    default:
+        return SDL_PIXELFORMAT_UNKNOWN;
     }
 }
 
@@ -700,7 +740,7 @@ static void Draw(
     if (data->state.render_target) {
         pipe_params.attachment_format = ((GPU_TextureData *)data->state.render_target->internal)->format;
     } else {
-        pipe_params.attachment_format = data->swapchain.format;
+        pipe_params.attachment_format = data->backbuffer.format;
     }
 
     SDL_GpuGraphicsPipeline *pipe = GPU_GetPipeline(&data->pipeline_cache, &data->shaders, data->device, &pipe_params);
@@ -772,7 +812,7 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
         GPU_TextureData *tdata = renderer->target->internal;
         data->state.color_attachment.texture = tdata->texture;
     } else {
-        data->state.color_attachment.texture = data->swapchain.texture;
+        data->state.color_attachment.texture = data->backbuffer.texture;
     }
 
     if (!data->state.color_attachment.texture) {
@@ -936,38 +976,162 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
 
 static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect *rect)
 {
-    SDL_Unsupported(); // TODO
-    return NULL;
+    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
+    SDL_GpuTexture *gpu_tex;
+    SDL_PixelFormat pixfmt;
+
+    if (data->state.render_target) {
+        SDL_Texture *texture = data->state.render_target;
+        GPU_TextureData *texdata = texture->internal;
+        gpu_tex = texdata->texture;
+        pixfmt = texture->format;
+    } else {
+        gpu_tex = data->backbuffer.texture;
+        pixfmt = TexFormatToPixFormat(data->backbuffer.format);
+
+        if (pixfmt == SDL_PIXELFORMAT_UNKNOWN) {
+            SDL_SetError("Unsupported backbuffer format");
+            return NULL;
+        }
+    }
+
+    Uint32 bpp = SDL_BYTESPERPIXEL(pixfmt);
+    Uint32 row_size = rect->w * bpp;
+    Uint32 image_size = row_size * rect->h;
+
+    SDL_Surface *surface = SDL_CreateSurface(rect->w, rect->h, pixfmt);
+
+    if (!surface) {
+        return NULL;
+    }
+
+    SDL_GpuTransferBufferCreateInfo tbci = { 0 };
+    tbci.sizeInBytes = image_size;
+    tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
+
+    SDL_GpuTransferBuffer *tbuf = SDL_GpuCreateTransferBuffer(data->device, &tbci);
+
+    if (!tbuf) {
+        return NULL;
+    }
+
+    SDL_GpuCopyPass *pass = SDL_GpuBeginCopyPass(data->state.command_buffer);
+
+    SDL_GpuTextureRegion src = { 0 };
+    src.texture = gpu_tex;
+    src.x = rect->x;
+    src.y = rect->y;
+    src.w = rect->w;
+    src.h = rect->h;
+
+    SDL_GpuTextureTransferInfo dst = { 0 };
+    dst.transferBuffer = tbuf;
+    dst.imageHeight = rect->h;
+    dst.imagePitch = rect->w;
+
+    SDL_GpuDownloadFromTexture(pass, &src, &dst);
+    SDL_GpuEndCopyPass(pass);
+
+    SDL_GpuFence *fence = SDL_GpuSubmitAndAcquireFence(data->state.command_buffer);
+    SDL_GpuWaitForFences(data->device, SDL_TRUE, &fence, 1);
+    SDL_GpuReleaseFence(data->device, fence);
+    data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
+
+    void *mapped_tbuf = SDL_GpuMapTransferBuffer(data->device, tbuf, SDL_FALSE);
+
+    if (surface->pitch == row_size) {
+        memcpy(surface->pixels, mapped_tbuf, image_size);
+    } else {
+        Uint8 *input = mapped_tbuf;
+        Uint8 *output = surface->pixels;
+
+        for (Uint32 row = 0; row < rect->h; ++row) {
+            memcpy(output, input, row_size);
+            output += surface->pitch;
+            input += row_size;
+        }
+    }
+
+    SDL_GpuUnmapTransferBuffer(data->device, tbuf);
+    SDL_GpuReleaseTransferBuffer(data->device, tbuf);
+
+    return surface;
 }
 
-static void RenewSwapchain(SDL_Renderer *renderer)
+static int CreateBackbuffer(GPU_RenderData *data, Uint32 w, Uint32 h, SDL_GpuTextureFormat fmt)
 {
-    GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
+    SDL_GpuTextureCreateInfo tci = { 0 };
+    tci.width = w;
+    tci.height = h;
+    tci.format = fmt;
+    tci.layerCountOrDepth = 1;
+    tci.levelCount = 1;
+    tci.sampleCount = SDL_GPU_SAMPLECOUNT_1;
+    tci.usageFlags = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET_BIT;
 
-    data->swapchain.texture = SDL_GpuAcquireSwapchainTexture(
-        data->state.command_buffer, renderer->window, &data->swapchain.width, &data->swapchain.height);
+    data->backbuffer.texture = SDL_GpuCreateTexture(data->device, &tci);
+    data->backbuffer.width = w;
+    data->backbuffer.height = h;
+    data->backbuffer.format = fmt;
 
-    if (data->swapchain.texture) {
-        data->swapchain.format = SDL_GpuGetSwapchainTextureFormat(data->device, renderer->window);
-    }
+    return data->backbuffer.texture ? 0 : -1;
 }
 
 static int GPU_RenderPresent(SDL_Renderer *renderer)
 {
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
 
-    SDL_GpuFence *next_fence = SDL_GpuSubmitAndAcquireFence(data->state.command_buffer);
+    Uint32 swapchain_w, swapchain_h;
 
+    SDL_GpuTexture *swapchain = SDL_GpuAcquireSwapchainTexture(data->state.command_buffer, renderer->window, &swapchain_w, &swapchain_h);
+
+    if (swapchain == NULL) {
+        goto submit;
+    }
+
+    SDL_GpuTextureFormat swapchain_fmt = SDL_GpuGetSwapchainTextureFormat(data->device, renderer->window);
+
+    if (swapchain_w != data->backbuffer.width || swapchain_h != data->backbuffer.height || swapchain_fmt != data->backbuffer.format) {
+        SDL_GpuTextureRegion src = { 0 };
+        src.texture = data->backbuffer.texture;
+        src.w = data->backbuffer.width;
+        src.h = data->backbuffer.height;
+        src.d = 1;
+
+        SDL_GpuTextureRegion dst = { 0 };
+        dst.texture = swapchain;
+        dst.w = swapchain_w;
+        dst.h = swapchain_h;
+        dst.d = 1;
+
+        SDL_GpuBlit(data->state.command_buffer, &src, &dst, SDL_GPU_FILTER_LINEAR, SDL_TRUE);
+        SDL_GpuReleaseTexture(data->device, data->backbuffer.texture);
+        CreateBackbuffer(data, swapchain_w, swapchain_h, swapchain_fmt);
+    } else {
+        SDL_GpuTextureLocation src = { 0 };
+        src.texture = data->backbuffer.texture;
+
+        SDL_GpuTextureLocation dst = { 0 };
+        dst.texture = swapchain;
+
+        SDL_GpuCopyPass *pass = SDL_GpuBeginCopyPass(data->state.command_buffer);
+        SDL_GpuCopyTextureToTexture(pass, &src, &dst, swapchain_w, swapchain_h, 1, SDL_TRUE);
+        SDL_GpuEndCopyPass(pass);
+    }
+
+submit:
+#if 1
     if (data->present_fence) {
         SDL_GpuWaitForFences(data->device, SDL_TRUE, &data->present_fence, 1);
         SDL_GpuReleaseFence(data->device, data->present_fence);
     }
 
-    SDL_assert(next_fence != NULL);
-    data->present_fence = next_fence;
+    data->present_fence = SDL_GpuSubmitAndAcquireFence(data->state.command_buffer);
+#else
+    SDL_GpuSubmit(data->state.command_buffer);
+#endif
 
     data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
-    RenewSwapchain(renderer);
 
     return 0;
 }
@@ -1029,6 +1193,10 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
         SDL_GpuReleaseSampler(data->device, ((SDL_GpuSampler **)data->samplers)[i]);
     }
 
+    if (data->backbuffer.texture) {
+        SDL_GpuReleaseTexture(data->device, data->backbuffer.texture);
+    }
+
     if (renderer->window) {
         SDL_GpuUnclaimWindow(data->device, renderer->window);
     }
@@ -1048,25 +1216,25 @@ static int GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
 
     switch (vsync) {
-        case 0:
+    case 0:
+        data->swapchain.present_mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
+
+        if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
             data->swapchain.present_mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
+        }
 
-            if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
-                data->swapchain.present_mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
-            }
-
-            if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
-                data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
-            }
-
-            return 0;
-
-        case 1:
+        if (!SDL_GpuSupportsPresentMode(data->device, renderer->window, data->swapchain.present_mode)) {
             data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
-            return 0;
+        }
 
-        default:
-            return SDL_Unsupported();
+        return 0;
+
+    case 1:
+        data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+        return 0;
+
+    default:
+        return SDL_Unsupported();
     }
 }
 
@@ -1236,10 +1404,10 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
         goto error;
     }
 
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ARGB8888);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_ABGR8888);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_XRGB8888);
-    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_XBGR8888);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_RGBA32);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_BGRA32);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_RGBX32);
+    SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_BGRX32);
 
     // TODO YUV
 #if SDL_HAVE_YUV
@@ -1272,7 +1440,13 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     data->state.draw_color.a = 1.0f;
 
     data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
-    RenewSwapchain(renderer);
+
+    int w, h;
+    SDL_GetWindowSizeInPixels(window, &w, &h);
+
+    if (CreateBackbuffer(data, w, h, SDL_GpuGetSwapchainTextureFormat(data->device, window)) != 0) {
+        goto error;
+    }
 
     return 0;
 
