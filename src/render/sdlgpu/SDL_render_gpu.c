@@ -859,6 +859,7 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
     src.y = rect->y;
     src.w = rect->w;
     src.h = rect->h;
+    src.d = 1;
 
     SDL_GpuTextureTransferInfo dst = { 0 };
     dst.transferBuffer = tbuf;
