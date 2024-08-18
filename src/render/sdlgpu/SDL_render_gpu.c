@@ -903,7 +903,7 @@ static int CreateBackbuffer(GPU_RenderData *data, Uint32 w, Uint32 h, SDL_GpuTex
     tci.layerCountOrDepth = 1;
     tci.levelCount = 1;
     tci.sampleCount = SDL_GPU_SAMPLECOUNT_1;
-    tci.usageFlags = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET_BIT;
+    tci.usageFlags = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET_BIT | SDL_GPU_TEXTUREUSAGE_SAMPLER_BIT;
 
     data->backbuffer.texture = SDL_GpuCreateTexture(data->device, &tci);
     data->backbuffer.width = w;
