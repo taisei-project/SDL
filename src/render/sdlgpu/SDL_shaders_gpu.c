@@ -67,7 +67,7 @@ typedef struct GPU_ShaderModuleSource
 
 #if SDL_GPU_D3D12
 #define IF_D3D12(...) __VA_ARGS__
-#include "shaders/dxbc51.h"
+#include "shaders/dxil60.h"
 #else
 #define IF_D3D12(...)
 #endif
@@ -83,7 +83,7 @@ typedef struct GPU_ShaderSources
 {
     IF_VULKAN(GPU_ShaderModuleSource spirv;)
     IF_D3D11(GPU_ShaderModuleSource dxbc50;)
-    IF_D3D12(GPU_ShaderModuleSource dxbc51;)
+    IF_D3D12(GPU_ShaderModuleSource dxil60;)
     IF_METAL(GPU_ShaderModuleSource msl;)
     unsigned int num_samplers;
     unsigned int num_uniform_buffers;
@@ -95,8 +95,8 @@ typedef struct GPU_ShaderSources
 #define SHADER_DXBC50(code) \
     IF_D3D11(.dxbc50 = { code, sizeof(code), SDL_GPU_SHADERFORMAT_DXBC }, )
 
-#define SHADER_DXBC51(code) \
-    IF_D3D12(.dxbc51 = { code, sizeof(code), SDL_GPU_SHADERFORMAT_DXBC }, )
+#define SHADER_DXIL60(code) \
+    IF_D3D12(.dxil60 = { code, sizeof(code), SDL_GPU_SHADERFORMAT_DXIL }, )
 
 #define SHADER_METAL(code) \
     IF_METAL(.msl = { code, sizeof(code), SDL_GPU_SHADERFORMAT_MSL }, )
@@ -108,7 +108,7 @@ static const GPU_ShaderSources vert_shader_sources[NUM_VERT_SHADERS] = {
         .num_uniform_buffers = 1,
         SHADER_SPIRV(linepoint_vert_spv)
         SHADER_DXBC50(linepoint_vert_sm50_dxbc)
-        SHADER_DXBC51(linepoint_vert_sm51_dxbc)
+        SHADER_DXIL60(linepoint_vert_sm60_dxil)
         SHADER_METAL(linepoint_vert_metal)
     },
     [VERT_SHADER_TRI_COLOR] = {
@@ -116,7 +116,7 @@ static const GPU_ShaderSources vert_shader_sources[NUM_VERT_SHADERS] = {
         .num_uniform_buffers = 1,
         SHADER_SPIRV(tri_color_vert_spv)
         SHADER_DXBC50(tri_color_vert_sm50_dxbc)
-        SHADER_DXBC51(tri_color_vert_sm51_dxbc)
+        SHADER_DXIL60(tri_color_vert_sm60_dxil)
         SHADER_METAL(tri_color_vert_metal)
     },
     [VERT_SHADER_TRI_TEXTURE] = {
@@ -124,7 +124,7 @@ static const GPU_ShaderSources vert_shader_sources[NUM_VERT_SHADERS] = {
         .num_uniform_buffers = 1,
         SHADER_SPIRV(tri_texture_vert_spv)
         SHADER_DXBC50(tri_texture_vert_sm50_dxbc)
-        SHADER_DXBC51(tri_texture_vert_sm51_dxbc)
+        SHADER_DXIL60(tri_texture_vert_sm60_dxil)
         SHADER_METAL(tri_texture_vert_metal)
     },
 };
@@ -135,7 +135,7 @@ static const GPU_ShaderSources frag_shader_sources[NUM_FRAG_SHADERS] = {
         .num_uniform_buffers = 0,
         SHADER_SPIRV(color_frag_spv)
         SHADER_DXBC50(color_frag_sm50_dxbc)
-        SHADER_DXBC51(color_frag_sm51_dxbc)
+        SHADER_DXIL60(color_frag_sm60_dxil)
         SHADER_METAL(color_frag_metal)
     },
     [FRAG_SHADER_TEXTURE_RGB] = {
@@ -143,7 +143,7 @@ static const GPU_ShaderSources frag_shader_sources[NUM_FRAG_SHADERS] = {
         .num_uniform_buffers = 0,
         SHADER_SPIRV(texture_rgb_frag_spv)
         SHADER_DXBC50(texture_rgb_frag_sm50_dxbc)
-        SHADER_DXBC51(texture_rgb_frag_sm51_dxbc)
+        SHADER_DXIL60(texture_rgb_frag_sm60_dxil)
         SHADER_METAL(texture_rgb_frag_metal)
     },
     [FRAG_SHADER_TEXTURE_RGBA] = {
@@ -151,7 +151,7 @@ static const GPU_ShaderSources frag_shader_sources[NUM_FRAG_SHADERS] = {
         .num_uniform_buffers = 0,
         SHADER_SPIRV(texture_rgba_frag_spv)
         SHADER_DXBC50(texture_rgba_frag_sm50_dxbc)
-        SHADER_DXBC51(texture_rgba_frag_sm51_dxbc)
+        SHADER_DXIL60(texture_rgba_frag_sm60_dxil)
         SHADER_METAL(texture_rgb_frag_metal)
     },
 };
@@ -166,7 +166,7 @@ static SDL_GpuShader *CompileShader(const GPU_ShaderSources *sources, SDL_GpuDev
         /* clang-format off */
         IF_VULKAN(  case SDL_GPU_DRIVER_VULKAN: sms = &sources->spirv;  break;)
         IF_D3D11(   case SDL_GPU_DRIVER_D3D11:  sms = &sources->dxbc50; break;)
-        IF_D3D12(   case SDL_GPU_DRIVER_D3D12:  sms = &sources->dxbc51; break;)
+        IF_D3D12(   case SDL_GPU_DRIVER_D3D12:  sms = &sources->dxil60; break;)
         IF_METAL(   case SDL_GPU_DRIVER_METAL:  sms = &sources->msl;    break;)
         /* clang-format on */
 
@@ -243,7 +243,8 @@ SDL_GpuShader *GPU_GetFragmentShader(GPU_Shaders *shaders, GPU_FragmentShaderID 
 void GPU_FillSupportedShaderFormats(SDL_PropertiesID props)
 {
     SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_SPIRV_BOOL, SDL_GPU_VULKAN);
-    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXBC_BOOL, SDL_GPU_D3D11 || SDL_GPU_D3D12);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXBC_BOOL, SDL_GPU_D3D11);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXIL_BOOL, SDL_GPU_D3D12);
     SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_MSL_BOOL, SDL_GPU_METAL);
 }
 
