@@ -1163,7 +1163,16 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
         goto error;
     }
 
-    SDL_SetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_DEBUGMODE_BOOL, SDL_TRUE);
+    SDL_bool debug = SDL_GetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_DEBUGMODE_BOOL, SDL_FALSE);
+    SDL_bool lowpower = SDL_GetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_PREFERLOWPOWER_BOOL, SDL_FALSE);
+
+    // Prefer environment variables/hints if they exist, otherwise defer to properties
+    debug = SDL_GetHintBoolean(SDL_HINT_RENDER_GPU_DEBUG, debug);
+    lowpower = SDL_GetHintBoolean(SDL_HINT_RENDER_GPU_LOW_POWER, lowpower);
+
+    SDL_SetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_DEBUGMODE_BOOL, debug);
+    SDL_SetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_PREFERLOWPOWER_BOOL, lowpower);
+
     GPU_FillSupportedShaderFormats(create_props);
     data->device = SDL_GpuCreateDeviceWithProperties(create_props);
 
