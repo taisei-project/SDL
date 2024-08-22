@@ -557,7 +557,7 @@ static void Draw(
 
     SDL_GpuBindVertexBuffers(pass, 0, &buffer_bind, 1);
     PushUniforms(data, cmd);
-    SDL_GpuDrawPrimitives(data->state.render_pass, 0, num_verts);
+    SDL_GpuDrawPrimitives(data->state.render_pass, 0, num_verts, 1);
 }
 
 static void ReleaseVertexBuffer(GPU_RenderData *data)
