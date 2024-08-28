@@ -4424,12 +4424,12 @@ static SDL_bool VULKAN_INTERNAL_CreateSwapchain(
 
     /* Each swapchain must have its own surface. */
 
-    if (_this->Vulkan_CreateSurface(
+    if (!_this->Vulkan_CreateSurface(
             _this,
             windowData->window,
             renderer->instance,
             NULL, /* FIXME: VAllocationCallbacks */
-            &swapchainData->surface) < 0) {
+            &swapchainData->surface)) {
         SDL_free(swapchainData);
         SDL_LogError(
             SDL_LOG_CATEGORY_GPU,
@@ -9605,7 +9605,7 @@ static WindowData *VULKAN_INTERNAL_FetchWindowData(
     return (WindowData *)SDL_GetPointerProperty(properties, WINDOW_PROPERTY_DATA, NULL);
 }
 
-static int VULKAN_INTERNAL_OnWindowResize(void *userdata, SDL_Event *e)
+static SDL_bool VULKAN_INTERNAL_OnWindowResize(void *userdata, SDL_Event *e)
 {
     SDL_Window *w = (SDL_Window *)userdata;
     WindowData *data;
@@ -9614,7 +9614,7 @@ static int VULKAN_INTERNAL_OnWindowResize(void *userdata, SDL_Event *e)
         data->needsSwapchainRecreate = SDL_TRUE;
     }
 
-    return 0;
+    return SDL_FALSE;
 }
 
 static SDL_bool VULKAN_SupportsSwapchainComposition(
@@ -11457,7 +11457,7 @@ static void VULKAN_INTERNAL_LoadEntryPoints(void)
     SDL_setenv("MVK_CONFIG_FULL_IMAGE_VIEW_SWIZZLE", "1", 1);
 
     /* Load Vulkan entry points */
-    if (SDL_Vulkan_LoadLibrary(NULL) < 0) {
+    if (!SDL_Vulkan_LoadLibrary(NULL)) {
         SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Vulkan: SDL_Vulkan_LoadLibrary failed!");
         return;
     }
@@ -11518,7 +11518,7 @@ static SDL_bool VULKAN_PrepareDriver(SDL_VideoDevice *_this)
         return SDL_FALSE;
     }
 
-    if (SDL_Vulkan_LoadLibrary(NULL) < 0) {
+    if (!SDL_Vulkan_LoadLibrary(NULL)) {
         return SDL_FALSE;
     }
 
@@ -11546,7 +11546,7 @@ static SDL_GpuDevice *VULKAN_CreateDevice(SDL_bool debugMode, SDL_bool preferLow
     /* Variables: Image Format Detection */
     VkImageFormatProperties imageFormatProperties;
 
-    if (SDL_Vulkan_LoadLibrary(NULL) < 0) {
+    if (!SDL_Vulkan_LoadLibrary(NULL)) {
         SDL_assert(!"This should have failed in PrepareDevice first!");
         return NULL;
     }
