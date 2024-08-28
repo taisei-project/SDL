@@ -42,7 +42,7 @@ typedef struct GPU_PipelineCache
     SDL_HashTable *table;
 } GPU_PipelineCache;
 
-extern int GPU_InitPipelineCache(GPU_PipelineCache *cache, SDL_GpuDevice *device);
+extern bool GPU_InitPipelineCache(GPU_PipelineCache *cache, SDL_GpuDevice *device);
 extern void GPU_DestroyPipelineCache(GPU_PipelineCache *cache);
 extern SDL_GpuGraphicsPipeline *GPU_GetPipeline(GPU_PipelineCache *cache, GPU_Shaders *shaders, SDL_GpuDevice *device, const GPU_PipelineParameters *params);
 

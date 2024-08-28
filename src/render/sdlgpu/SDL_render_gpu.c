@@ -168,7 +168,7 @@ static SDL_PixelFormat TexFormatToPixFormat(SDL_GpuTextureFormat tex_format)
     }
 }
 
-static int GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_PropertiesID create_props)
+static bool GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_PropertiesID create_props)
 {
     GPU_RenderData *renderdata = (GPU_RenderData *)renderer->internal;
     GPU_TextureData *data;
@@ -184,7 +184,7 @@ static int GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_P
 
     data = (GPU_TextureData *)SDL_calloc(1, sizeof(*data));
     if (!data) {
-        return -1;
+        return false;
     }
 
     if (texture->access == SDL_TEXTUREACCESS_STREAMING) {
@@ -204,7 +204,7 @@ static int GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_P
         data->pixels = SDL_calloc(1, size);
         if (!data->pixels) {
             SDL_free(data);
-            return -1;
+            return false;
         }
 
         // TODO allocate a persistent transfer buffer
@@ -229,7 +229,7 @@ static int GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_P
     data->texture = SDL_GpuCreateTexture(renderdata->device, &tci);
 
     if (!data->texture) {
-        return -1;
+        return false;
     }
 
     if (texture->format == SDL_PIXELFORMAT_RGBA32 || texture->format == SDL_PIXELFORMAT_BGRA32) {
@@ -238,10 +238,10 @@ static int GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_P
         data->shader = FRAG_SHADER_TEXTURE_RGB;
     }
 
-    return 0;
+    return true;
 }
 
-static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
+static bool GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
                              const SDL_Rect *rect, const void *pixels, int pitch)
 {
     GPU_RenderData *renderdata = (GPU_RenderData *)renderer->internal;
@@ -259,7 +259,7 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
     SDL_GpuTransferBuffer *tbuf = SDL_GpuCreateTransferBuffer(renderdata->device, &tbci);
 
     if (tbuf == NULL) {
-        return -1;
+        return false;
     }
 
     Uint8 *output = SDL_GpuMapTransferBuffer(renderdata->device, tbuf, false);
@@ -302,10 +302,10 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
     SDL_GpuEndCopyPass(cpass);
     SDL_GpuReleaseTransferBuffer(renderdata->device, tbuf);
 
-    return 0;
+    return true;
 }
 
-static int GPU_LockTexture(SDL_Renderer *renderer, SDL_Texture *texture,
+static bool GPU_LockTexture(SDL_Renderer *renderer, SDL_Texture *texture,
                            const SDL_Rect *rect, void **pixels, int *pitch)
 {
     GPU_TextureData *data = (GPU_TextureData *)texture->internal;
@@ -315,7 +315,7 @@ static int GPU_LockTexture(SDL_Renderer *renderer, SDL_Texture *texture,
         (void *)((Uint8 *)data->pixels + rect->y * data->pitch +
                  rect->x * SDL_BYTESPERPIXEL(texture->format));
     *pitch = data->pitch;
-    return 0;
+    return true;
 }
 
 static void GPU_UnlockTexture(SDL_Renderer *renderer, SDL_Texture *texture)
@@ -336,18 +336,18 @@ static void GPU_SetTextureScaleMode(SDL_Renderer *renderer, SDL_Texture *texture
     /* nothing to do in this backend. */
 }
 
-static int GPU_SetRenderTarget(SDL_Renderer *renderer, SDL_Texture *texture)
+static bool GPU_SetRenderTarget(SDL_Renderer *renderer, SDL_Texture *texture)
 {
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
 
     data->state.render_target = texture;
 
-    return 0;
+    return true;
 }
 
-static int GPU_QueueNoOp(SDL_Renderer *renderer, SDL_RenderCommand *cmd)
+static bool GPU_QueueNoOp(SDL_Renderer *renderer, SDL_RenderCommand *cmd)
 {
-    return 0; /* nothing to do in this backend. */
+    return true; /* nothing to do in this backend. */
 }
 
 static SDL_FColor GetDrawCmdColor(SDL_Renderer *renderer, SDL_RenderCommand *cmd)
@@ -365,12 +365,12 @@ static SDL_FColor GetDrawCmdColor(SDL_Renderer *renderer, SDL_RenderCommand *cmd
     return color;
 }
 
-static int GPU_QueueDrawPoints(SDL_Renderer *renderer, SDL_RenderCommand *cmd, const SDL_FPoint *points, int count)
+static bool GPU_QueueDrawPoints(SDL_Renderer *renderer, SDL_RenderCommand *cmd, const SDL_FPoint *points, int count)
 {
     float *verts = (float *)SDL_AllocateRenderVertices(renderer, count * 2 * sizeof(float), 0, &cmd->data.draw.first);
 
     if (!verts) {
-        return -1;
+        return false;
     }
 
     cmd->data.draw.count = count;
@@ -379,10 +379,10 @@ static int GPU_QueueDrawPoints(SDL_Renderer *renderer, SDL_RenderCommand *cmd, c
         *(verts++) = 0.5f + points[i].y;
     }
 
-    return 0;
+    return true;
 }
 
-static int GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SDL_Texture *texture,
+static bool GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SDL_Texture *texture,
                              const float *xy, int xy_stride, const SDL_FColor *color, int color_stride, const float *uv, int uv_stride,
                              int num_vertices, const void *indices, int num_indices, int size_indices,
                              float scale_x, float scale_y)
@@ -396,7 +396,7 @@ static int GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SDL
 
     verts = (float *)SDL_AllocateRenderVertices(renderer, count * sz, 0, &cmd->data.draw.first);
     if (!verts) {
-        return -1;
+        return false;
     }
 
     cmd->data.draw.count = count;
@@ -438,7 +438,7 @@ static int GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SDL
             *(verts++) = uv_[1] * texture->h;
         }
     }
-    return 0;
+    return true;
 }
 
 static void GPU_InvalidateCachedState(SDL_Renderer *renderer)
@@ -594,7 +594,7 @@ static void ReleaseVertexBuffer(GPU_RenderData *data)
     data->vertices.buffer_size = 0;
 }
 
-static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
+static bool InitVertexBuffer(GPU_RenderData *data, Uint32 size)
 {
     SDL_GpuBufferCreateInfo bci;
     SDL_zero(bci);
@@ -613,24 +613,19 @@ static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
 
     data->vertices.transfer_buf = SDL_GpuCreateTransferBuffer(data->device, &tbci);
-
-    if (!data->vertices.transfer_buf) {
-        return -1;
-    }
-
-    return 0;
+    return (bool)data->vertices.transfer_buf;
 }
 
-static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
+static bool UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
 {
     if (vertsize == 0) {
-        return 0;
+        return true;
     }
 
     if (vertsize > data->vertices.buffer_size) {
         ReleaseVertexBuffer(data);
-        if (InitVertexBuffer(data, (Uint32)vertsize) != 0) {
-            return -1;
+        if (!InitVertexBuffer(data, (Uint32)vertsize)) {
+            return false;
         }
     }
 
@@ -641,7 +636,7 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
     SDL_GpuCopyPass *pass = SDL_GpuBeginCopyPass(data->state.command_buffer);
 
     if (!pass) {
-        return -1;
+        return false;
     }
 
     SDL_GpuTransferBufferLocation src;
@@ -656,15 +651,15 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
     SDL_GpuUploadToBuffer(pass, &src, &dst, true);
     SDL_GpuEndCopyPass(pass);
 
-    return 0;
+    return true;
 }
 
-static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, void *vertices, size_t vertsize)
+static bool GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, void *vertices, size_t vertsize)
 {
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
 
-    if (UploadVertices(data, vertices, vertsize) != 0) {
-        return -1;
+    if (!UploadVertices(data, vertices, vertsize)) {
+        return false;
     }
 
     data->state.color_attachment.loadOp = SDL_GPU_LOADOP_LOAD;
@@ -677,7 +672,6 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
     }
 
     if (!data->state.color_attachment.texture) {
-        // FIXME is this an error? Happens if the swapchain texture couldn't be acquired
         return SDL_SetError("Render target texture is NULL");
     }
 
@@ -815,7 +809,7 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
         data->state.render_pass = NULL;
     }
 
-    return 0;
+    return true;
 }
 
 static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect *rect)
@@ -906,7 +900,7 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
     return surface;
 }
 
-static int CreateBackbuffer(GPU_RenderData *data, Uint32 w, Uint32 h, SDL_GpuTextureFormat fmt)
+static bool CreateBackbuffer(GPU_RenderData *data, Uint32 w, Uint32 h, SDL_GpuTextureFormat fmt)
 {
     SDL_GpuTextureCreateInfo tci;
     SDL_zero(tci);
@@ -923,10 +917,10 @@ static int CreateBackbuffer(GPU_RenderData *data, Uint32 w, Uint32 h, SDL_GpuTex
     data->backbuffer.height = h;
     data->backbuffer.format = fmt;
 
-    return data->backbuffer.texture ? 0 : -1;
+    return (bool)data->backbuffer.texture;
 }
 
-static int GPU_RenderPresent(SDL_Renderer *renderer)
+static bool GPU_RenderPresent(SDL_Renderer *renderer)
 {
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
 
@@ -984,7 +978,7 @@ submit:
 
     data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
 
-    return 0;
+    return true;
 }
 
 static void GPU_DestroyTexture(SDL_Renderer *renderer, SDL_Texture *texture)
@@ -1044,7 +1038,7 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
     SDL_free(data);
 }
 
-static int ChoosePresentMode(SDL_GpuDevice *device, SDL_Window *window, const int vsync, SDL_GpuPresentMode *out_mode)
+static bool ChoosePresentMode(SDL_GpuDevice *device, SDL_Window *window, const int vsync, SDL_GpuPresentMode *out_mode)
 {
     SDL_GpuPresentMode mode;
 
@@ -1072,32 +1066,32 @@ static int ChoosePresentMode(SDL_GpuDevice *device, SDL_Window *window, const in
     }
 
     *out_mode = mode;
-    return 0;
+    return true;
 }
 
-static int GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
+static bool GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
 {
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
     SDL_GpuPresentMode mode = SDL_GPU_PRESENTMODE_VSYNC;
 
-    if (ChoosePresentMode(data->device, renderer->window, vsync, &mode) != 0) {
-        return -1;
+    if (!ChoosePresentMode(data->device, renderer->window, vsync, &mode)) {
+        return false;
     }
 
     if (mode != data->swapchain.present_mode) {
         // XXX returns bool instead of SDL-style error code
         if (SDL_GpuSetSwapchainParameters(data->device, renderer->window, data->swapchain.composition, mode)) {
             data->swapchain.present_mode = mode;
-            return 0;
+            return true;
         } else {
-            return -1;
+            return false;
         }
     }
 
-    return 0;
+    return true;
 }
 
-static int InitSamplers(GPU_RenderData *data)
+static bool InitSamplers(GPU_RenderData *data)
 {
     struct
     {
@@ -1150,22 +1144,22 @@ static int InitSamplers(GPU_RenderData *data)
         SDL_GpuSampler *sampler = SDL_GpuCreateSampler(data->device, &sci);
 
         if (sampler == NULL) {
-            return -1;
+            return false;
         }
 
         *SamplerPointer(data, configs[i].sdl.address_mode, configs[i].sdl.scale_mode) = sampler;
     }
 
-    return 0;
+    return true;
 }
 
-static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_PropertiesID create_props)
+static bool GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_PropertiesID create_props)
 {
     GPU_RenderData *data = NULL;
 
     data = (GPU_RenderData *)SDL_calloc(1, sizeof(*data));
     if (!data) {
-        return -1;
+        return false;
     }
 
     renderer->internal = data;
@@ -1195,20 +1189,20 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
         goto error;
     }
 
-    if (GPU_InitShaders(&data->shaders, data->device) != 0) {
+    if (!GPU_InitShaders(&data->shaders, data->device)) {
         goto error;
     }
 
-    if (GPU_InitPipelineCache(&data->pipeline_cache, data->device) != 0) {
+    if (!GPU_InitPipelineCache(&data->pipeline_cache, data->device)) {
         goto error;
     }
 
     // XXX what's a good initial size?
-    if (InitVertexBuffer(data, 1 << 16) != 0) {
+    if (!InitVertexBuffer(data, 1 << 16)) {
         goto error;
     }
 
-    if (InitSamplers(data) != 0) {
+    if (!InitSamplers(data)) {
         goto error;
     }
 
@@ -1270,15 +1264,15 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     int w, h;
     SDL_GetWindowSizeInPixels(window, &w, &h);
 
-    if (CreateBackbuffer(data, w, h, SDL_GpuGetSwapchainTextureFormat(data->device, window)) != 0) {
+    if (!CreateBackbuffer(data, w, h, SDL_GpuGetSwapchainTextureFormat(data->device, window))) {
         goto error;
     }
 
-    return 0;
+    return true;
 
 error:
     GPU_DestroyRenderer(renderer);
-    return -1;
+    return false;
 }
 
 SDL_RenderDriver GPU_RenderDriver = {

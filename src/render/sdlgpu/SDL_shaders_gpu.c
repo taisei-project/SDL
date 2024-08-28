@@ -178,14 +178,14 @@ static SDL_GpuShader *CompileShader(const GPU_ShaderSources *sources, SDL_GpuDev
     return SDL_GpuCreateShader(device, &sci);
 }
 
-int GPU_InitShaders(GPU_Shaders *shaders, SDL_GpuDevice *device)
+bool GPU_InitShaders(GPU_Shaders *shaders, SDL_GpuDevice *device)
 {
     for (int i = 0; i < SDL_arraysize(vert_shader_sources); ++i) {
         shaders->vert_shaders[i] = CompileShader(
             &vert_shader_sources[i], device, SDL_GPU_SHADERSTAGE_VERTEX);
         if (shaders->vert_shaders[i] == NULL) {
             GPU_ReleaseShaders(shaders, device);
-            return -1;
+            return false;
         }
     }
 
@@ -194,11 +194,11 @@ int GPU_InitShaders(GPU_Shaders *shaders, SDL_GpuDevice *device)
             &frag_shader_sources[i], device, SDL_GPU_SHADERSTAGE_FRAGMENT);
         if (shaders->frag_shaders[i] == NULL) {
             GPU_ReleaseShaders(shaders, device);
-            return -1;
+            return false;
         }
     }
 
-    return 0;
+    return true;
 }
 
 void GPU_ReleaseShaders(GPU_Shaders *shaders, SDL_GpuDevice *device)

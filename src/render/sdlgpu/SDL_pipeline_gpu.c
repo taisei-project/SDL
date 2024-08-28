@@ -80,12 +80,12 @@ static void NukePipelineCacheEntry(const void *key, const void *value, void *dat
     SDL_free(entry);
 }
 
-int GPU_InitPipelineCache(GPU_PipelineCache *cache, SDL_GpuDevice *device)
+bool GPU_InitPipelineCache(GPU_PipelineCache *cache, SDL_GpuDevice *device)
 {
     // FIXME how many buckets do we need?
     cache->table = SDL_CreateHashTable(device, 32, HashPassthrough, MatchPipelineCacheKey, NukePipelineCacheEntry, true);
 
-    return cache->table ? 0 : -1;
+    return (bool)cache->table;
 }
 
 void GPU_DestroyPipelineCache(GPU_PipelineCache *cache)
