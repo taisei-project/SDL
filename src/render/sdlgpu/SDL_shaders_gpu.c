@@ -33,50 +33,40 @@ typedef struct GPU_ShaderModuleSource
     SDL_GpuShaderFormat format;
 } GPU_ShaderModuleSource;
 
-// FIXME Please fix this in the build system!
-#ifndef SDL_GPU_VULKAN
-#warning SDL_GPU_VULKAN was not defined, please fix
-#define SDL_GPU_VULKAN 0
-#endif
-#ifndef SDL_GPU_D3D11
-#warning SDL_GPU_D3D11 was not defined, please fix
-#define SDL_GPU_D3D11 0
-#endif
-#ifndef SDL_GPU_D3D12
-#warning SDL_GPU_D3D12 was not defined, please fix
-#define SDL_GPU_D3D12 0
-#endif
-#ifndef SDL_GPU_METAL
-#warning SDL_GPU_METAL was not defined, please fix
-#define SDL_GPU_METAL 0
-#endif
-
-#if SDL_GPU_VULKAN
+#ifdef SDL_GPU_VULKAN
 #define IF_VULKAN(...) __VA_ARGS__
+#define HAVE_SPIRV_SHADERS 1
 #include "shaders/spir-v.h"
 #else
 #define IF_VULKAN(...)
+#define HAVE_SPIRV_SHADERS 0
 #endif
 
-#if SDL_GPU_D3D11
+#ifdef SDL_GPU_D3D11
 #define IF_D3D11(...) __VA_ARGS__
+#define HAVE_DXBC50_SHADERS 1
 #include "shaders/dxbc50.h"
 #else
 #define IF_D3D11(...)
+#define HAVE_DXBC50_SHADERS 0
 #endif
 
-#if SDL_GPU_D3D12
+#ifdef SDL_GPU_D3D12
 #define IF_D3D12(...) __VA_ARGS__
+#define HAVE_DXIL60_SHADERS 1
 #include "shaders/dxil60.h"
 #else
 #define IF_D3D12(...)
+#define HAVE_DXIL60_SHADERS 0
 #endif
 
-#if SDL_GPU_METAL
+#ifdef SDL_GPU_METAL
 #define IF_METAL(...) __VA_ARGS__
+#define HAVE_METAL_SHADERS 1
 #include "shaders/metal.h"
 #else
 #define IF_METAL(...)
+#define HAVE_METAL_SHADERS 0
 #endif
 
 typedef struct GPU_ShaderSources
@@ -242,10 +232,10 @@ SDL_GpuShader *GPU_GetFragmentShader(GPU_Shaders *shaders, GPU_FragmentShaderID 
 
 void GPU_FillSupportedShaderFormats(SDL_PropertiesID props)
 {
-    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_SPIRV_BOOL, SDL_GPU_VULKAN);
-    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXBC_BOOL, SDL_GPU_D3D11);
-    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXIL_BOOL, SDL_GPU_D3D12);
-    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_MSL_BOOL, SDL_GPU_METAL);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_SPIRV_BOOL, HAVE_SPIRV_SHADERS);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXBC_BOOL, HAVE_DXBC50_SHADERS);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_DXIL_BOOL, HAVE_DXIL60_SHADERS);
+    SDL_SetBooleanProperty(props, SDL_PROP_GPU_CREATEDEVICE_SHADERS_MSL_BOOL, HAVE_METAL_SHADERS);
 }
 
 #endif /* SDL_VIDEO_RENDER_OGL */
