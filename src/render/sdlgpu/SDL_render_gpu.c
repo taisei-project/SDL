@@ -629,7 +629,7 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
 
     if (vertsize > data->vertices.buffer_size) {
         ReleaseVertexBuffer(data);
-        if (InitVertexBuffer(data, vertsize) != 0) {
+        if (InitVertexBuffer(data, (Uint32)vertsize) != 0) {
             return -1;
         }
     }
@@ -893,7 +893,7 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
         Uint8 *input = mapped_tbuf;
         Uint8 *output = surface->pixels;
 
-        for (Uint32 row = 0; row < rect->h; ++row) {
+        for (int row = 0; row < rect->h; ++row) {
             memcpy(output, input, row_size);
             output += surface->pitch;
             input += row_size;
