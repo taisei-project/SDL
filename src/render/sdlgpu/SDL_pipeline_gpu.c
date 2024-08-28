@@ -57,7 +57,7 @@ static Uint32 HashPipelineCacheKey(const GPU_PipelineCacheKey *key)
     x = (x ^ (x >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
     x = (x ^ (x >> 27)) * UINT64_C(0x94d049bb133111eb);
     x = x ^ (x >> 31);
-    return x;
+    return (Uint32)(x & 0xffffffff);
 }
 
 static Uint32 HashPassthrough(const void *key, void *data)
