@@ -1034,10 +1034,10 @@ static int ChoosePresentMode(SDL_GpuDevice *device, SDL_Window *window, const in
 
         if (!SDL_GpuSupportsPresentMode(device, window, mode)) {
             mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
-        }
 
-        if (!SDL_GpuSupportsPresentMode(device, window, mode)) {
-            mode = SDL_GPU_PRESENTMODE_VSYNC;
+            if (!SDL_GpuSupportsPresentMode(device, window, mode)) {
+                mode = SDL_GPU_PRESENTMODE_VSYNC;
+            }
         }
 
         // FIXME should we return an error if both mailbox and immediate fail?
