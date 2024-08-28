@@ -72,7 +72,7 @@ typedef struct GPU_RenderData
         SDL_GpuViewport viewport;
         SDL_Rect scissor;
         SDL_FColor draw_color;
-        SDL_bool scissor_enabled;
+        bool scissor_enabled;
         GPU_ShaderUniformData shader_data;
     } state;
 
@@ -89,7 +89,7 @@ typedef struct GPU_TextureData
     SDL_Rect locked_rect;
 } GPU_TextureData;
 
-static SDL_bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blendMode)
+static bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blendMode)
 {
     SDL_BlendFactor srcColorFactor = SDL_GetBlendModeSrcColorFactor(blendMode);
     SDL_BlendFactor srcAlphaFactor = SDL_GetBlendModeSrcAlphaFactor(blendMode);
@@ -104,10 +104,10 @@ static SDL_bool GPU_SupportsBlendMode(SDL_Renderer *renderer, SDL_BlendMode blen
         GPU_ConvertBlendFactor(dstColorFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
         GPU_ConvertBlendFactor(dstAlphaFactor) == SDL_GPU_BLENDFACTOR_INVALID ||
         GPU_ConvertBlendOperation(alphaOperation) == SDL_GPU_BLENDOP_INVALID) {
-        return SDL_FALSE;
+        return false;
     }
 
-    return SDL_TRUE;
+    return true;
 }
 
 static SDL_GpuTextureFormat PixFormatToTexFormat(SDL_PixelFormat pixel_format)
@@ -115,10 +115,10 @@ static SDL_GpuTextureFormat PixFormatToTexFormat(SDL_PixelFormat pixel_format)
     switch (pixel_format) {
     case SDL_PIXELFORMAT_BGRA32:
     case SDL_PIXELFORMAT_BGRX32:
-        return SDL_GPU_TEXTUREFORMAT_B8G8R8A8;
+        return SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM;
     case SDL_PIXELFORMAT_RGBA32:
     case SDL_PIXELFORMAT_RGBX32:
-        return SDL_GPU_TEXTUREFORMAT_R8G8B8A8;
+        return SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
 
     // YUV TODO
     case SDL_PIXELFORMAT_YV12:
@@ -134,33 +134,33 @@ static SDL_GpuTextureFormat PixFormatToTexFormat(SDL_PixelFormat pixel_format)
 static SDL_PixelFormat TexFormatToPixFormat(SDL_GpuTextureFormat tex_format)
 {
     switch (tex_format) {
-    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8:
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM:
         return SDL_PIXELFORMAT_RGBA32;
-    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8:
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM:
         return SDL_PIXELFORMAT_BGRA32;
-    case SDL_GPU_TEXTUREFORMAT_B5G6R5:
+    case SDL_GPU_TEXTUREFORMAT_B5G6R5_UNORM:
         return SDL_PIXELFORMAT_BGR565;
-    case SDL_GPU_TEXTUREFORMAT_B5G5R5A1:
+    case SDL_GPU_TEXTUREFORMAT_B5G5R5A1_UNORM:
         return SDL_PIXELFORMAT_BGRA5551;
-    case SDL_GPU_TEXTUREFORMAT_B4G4R4A4:
+    case SDL_GPU_TEXTUREFORMAT_B4G4R4A4_UNORM:
         return SDL_PIXELFORMAT_BGRA4444;
-    case SDL_GPU_TEXTUREFORMAT_R10G10B10A2:
+    case SDL_GPU_TEXTUREFORMAT_R10G10B10A2_UNORM:
         return SDL_PIXELFORMAT_ABGR2101010;
-    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16:
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UNORM:
         return SDL_PIXELFORMAT_RGBA64;
     case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SNORM:
         return SDL_PIXELFORMAT_RGBA32;
-    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_SFLOAT:
+    case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT:
         return SDL_PIXELFORMAT_RGBA64_FLOAT;
-    case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_SFLOAT:
+    case SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT:
         return SDL_PIXELFORMAT_RGBA128_FLOAT;
     case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UINT:
         return SDL_PIXELFORMAT_RGBA32;
     case SDL_GPU_TEXTUREFORMAT_R16G16B16A16_UINT:
         return SDL_PIXELFORMAT_RGBA64;
-    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_SRGB:
+    case SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB:
         return SDL_PIXELFORMAT_RGBA32;
-    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_SRGB:
+    case SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM_SRGB:
         return SDL_PIXELFORMAT_BGRA32;
     default:
         return SDL_PIXELFORMAT_UNKNOWN;
@@ -259,7 +259,7 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
         return -1;
     }
 
-    Uint8 *output = SDL_GpuMapTransferBuffer(renderdata->device, tbuf, SDL_FALSE);
+    Uint8 *output = SDL_GpuMapTransferBuffer(renderdata->device, tbuf, false);
 
     if (pitch == row_size) {
         memcpy(output, pixels, data_size);
@@ -293,7 +293,7 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
     tex_dst.h = rect->h;
     tex_dst.d = 1;
 
-    SDL_GpuUploadToTexture(cpass, &tex_src, &tex_dst, SDL_TRUE);
+    SDL_GpuUploadToTexture(cpass, &tex_src, &tex_dst, true);
     SDL_GpuEndCopyPass(cpass);
     SDL_GpuReleaseTransferBuffer(renderdata->device, tbuf);
 
@@ -387,7 +387,7 @@ static int GPU_QueueGeometry(SDL_Renderer *renderer, SDL_RenderCommand *cmd, SDL
     float *verts;
     size_t sz = 2 * sizeof(float) + 4 * sizeof(float) + (texture ? 2 : 0) * sizeof(float);
     const float color_scale = cmd->data.draw.color_scale;
-    SDL_bool convert_color = SDL_RenderingLinearSpace(renderer);
+    bool convert_color = SDL_RenderingLinearSpace(renderer);
 
     verts = (float *)SDL_AllocateRenderVertices(renderer, count * sz, 0, &cmd->data.draw.first);
     if (!verts) {
@@ -441,7 +441,7 @@ static void GPU_InvalidateCachedState(SDL_Renderer *renderer)
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
 
     data->state.render_target = NULL;
-    data->state.scissor_enabled = SDL_FALSE;
+    data->state.scissor_enabled = false;
 }
 
 static SDL_GpuRenderPass *RestartRenderPass(GPU_RenderData *data)
@@ -557,7 +557,7 @@ static void Draw(
 
     SDL_GpuBindVertexBuffers(pass, 0, &buffer_bind, 1);
     PushUniforms(data, cmd);
-    SDL_GpuDrawPrimitives(data->state.render_pass, 0, num_verts, 1);
+    SDL_GpuDrawPrimitives(data->state.render_pass, num_verts, 1, 0, 0);
 }
 
 static void ReleaseVertexBuffer(GPU_RenderData *data)
@@ -611,7 +611,7 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
         }
     }
 
-    void *staging_buf = SDL_GpuMapTransferBuffer(data->device, data->vertices.transfer_buf, SDL_TRUE);
+    void *staging_buf = SDL_GpuMapTransferBuffer(data->device, data->vertices.transfer_buf, true);
     memcpy(staging_buf, vertices, vertsize);
     SDL_GpuUnmapTransferBuffer(data->device, data->vertices.transfer_buf);
 
@@ -628,7 +628,7 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
     dst.buffer = data->vertices.buffer;
     dst.size = (Uint32)vertsize;
 
-    SDL_GpuUploadToBuffer(pass, &src, &dst, SDL_TRUE);
+    SDL_GpuUploadToBuffer(pass, &src, &dst, true);
     SDL_GpuEndCopyPass(pass);
 
     return 0;
@@ -870,11 +870,11 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
     SDL_GpuEndCopyPass(pass);
 
     SDL_GpuFence *fence = SDL_GpuSubmitAndAcquireFence(data->state.command_buffer);
-    SDL_GpuWaitForFences(data->device, SDL_TRUE, &fence, 1);
+    SDL_GpuWaitForFences(data->device, true, &fence, 1);
     SDL_GpuReleaseFence(data->device, fence);
     data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
 
-    void *mapped_tbuf = SDL_GpuMapTransferBuffer(data->device, tbuf, SDL_FALSE);
+    void *mapped_tbuf = SDL_GpuMapTransferBuffer(data->device, tbuf, false);
 
     if (surface->pitch == row_size) {
         memcpy(surface->pixels, mapped_tbuf, image_size);
@@ -929,19 +929,17 @@ static int GPU_RenderPresent(SDL_Renderer *renderer)
     SDL_GpuTextureFormat swapchain_fmt = SDL_GpuGetSwapchainTextureFormat(data->device, renderer->window);
 
     if (swapchain_w != data->backbuffer.width || swapchain_h != data->backbuffer.height || swapchain_fmt != data->backbuffer.format) {
-        SDL_GpuTextureRegion src = { 0 };
+        SDL_GpuBlitRegion src = { 0 };
         src.texture = data->backbuffer.texture;
         src.w = data->backbuffer.width;
         src.h = data->backbuffer.height;
-        src.d = 1;
 
-        SDL_GpuTextureRegion dst = { 0 };
+        SDL_GpuBlitRegion dst = { 0 };
         dst.texture = swapchain;
         dst.w = swapchain_w;
         dst.h = swapchain_h;
-        dst.d = 1;
 
-        SDL_GpuBlit(data->state.command_buffer, &src, &dst, SDL_GPU_FILTER_LINEAR, SDL_TRUE);
+        SDL_GpuBlit(data->state.command_buffer, &src, &dst, SDL_FLIP_NONE, SDL_GPU_FILTER_LINEAR, true);
         SDL_GpuReleaseTexture(data->device, data->backbuffer.texture);
         CreateBackbuffer(data, swapchain_w, swapchain_h, swapchain_fmt);
     } else {
@@ -952,14 +950,14 @@ static int GPU_RenderPresent(SDL_Renderer *renderer)
         dst.texture = swapchain;
 
         SDL_GpuCopyPass *pass = SDL_GpuBeginCopyPass(data->state.command_buffer);
-        SDL_GpuCopyTextureToTexture(pass, &src, &dst, swapchain_w, swapchain_h, 1, SDL_TRUE);
+        SDL_GpuCopyTextureToTexture(pass, &src, &dst, swapchain_w, swapchain_h, 1, true);
         SDL_GpuEndCopyPass(pass);
     }
 
 submit:
 #if 1
     if (data->present_fence) {
-        SDL_GpuWaitForFences(data->device, SDL_TRUE, &data->present_fence, 1);
+        SDL_GpuWaitForFences(data->device, true, &data->present_fence, 1);
         SDL_GpuReleaseFence(data->device, data->present_fence);
     }
 
@@ -1001,7 +999,7 @@ static void GPU_DestroyRenderer(SDL_Renderer *renderer)
     }
 
     if (data->present_fence) {
-        SDL_GpuWaitForFences(data->device, SDL_TRUE, &data->present_fence, 1);
+        SDL_GpuWaitForFences(data->device, true, &data->present_fence, 1);
         SDL_GpuReleaseFence(data->device, data->present_fence);
     }
 
@@ -1163,8 +1161,8 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
         goto error;
     }
 
-    SDL_bool debug = SDL_GetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_DEBUGMODE_BOOL, SDL_FALSE);
-    SDL_bool lowpower = SDL_GetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_PREFERLOWPOWER_BOOL, SDL_FALSE);
+    bool debug = SDL_GetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_DEBUGMODE_BOOL, false);
+    bool lowpower = SDL_GetBooleanProperty(create_props, SDL_PROP_GPU_CREATEDEVICE_PREFERLOWPOWER_BOOL, false);
 
     // Prefer environment variables/hints if they exist, otherwise defer to properties
     debug = SDL_GetHintBoolean(SDL_HINT_RENDER_GPU_DEBUG, debug);
@@ -1220,16 +1218,17 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     renderer->window = window;
     renderer->name = GPU_RenderDriver.name;
 
+    if (!SDL_GpuClaimWindow(data->device, window)) {
+        goto error;
+    }
+
     data->swapchain.composition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
     data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
 
     int vsync = (int)SDL_GetNumberProperty(create_props, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, 0);
-    data->swapchain.present_mode = SDL_GPU_PRESENTMODE_VSYNC;
     ChoosePresentMode(data->device, window, vsync, &data->swapchain.present_mode);
 
-    if (!SDL_GpuClaimWindow(data->device, window, data->swapchain.composition, data->swapchain.present_mode)) {
-        goto error;
-    }
+    SDL_GpuSetSwapchainParameters(data->device, window, data->swapchain.composition, data->swapchain.present_mode);
 
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_RGBA32);
     SDL_AddSupportedTextureFormat(renderer, SDL_PIXELFORMAT_BGRA32);

@@ -66,7 +66,7 @@ static Uint32 HashPassthrough(const void *key, void *data)
     return (Uint32)(uintptr_t)key;
 }
 
-static SDL_bool MatchPipelineCacheKey(const void *a, const void *b, void *data)
+static bool MatchPipelineCacheKey(const void *a, const void *b, void *data)
 {
     return a == b;
 }
@@ -83,7 +83,7 @@ static void NukePipelineCacheEntry(const void *key, const void *value, void *dat
 int GPU_InitPipelineCache(GPU_PipelineCache *cache, SDL_GpuDevice *device)
 {
     // FIXME how many buckets do we need?
-    cache->table = SDL_CreateHashTable(device, 32, HashPassthrough, MatchPipelineCacheKey, NukePipelineCacheEntry, SDL_TRUE);
+    cache->table = SDL_CreateHashTable(device, 32, HashPassthrough, MatchPipelineCacheKey, NukePipelineCacheEntry, true);
 
     return cache->table ? 0 : -1;
 }
@@ -109,7 +109,7 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
     ad.blendState.srcColorBlendFactor = GPU_ConvertBlendFactor(SDL_GetBlendModeSrcColorFactor(blend));
 
     SDL_GpuGraphicsPipelineCreateInfo pci = { 0 };
-    pci.attachmentInfo.hasDepthStencilAttachment = SDL_FALSE;
+    pci.attachmentInfo.hasDepthStencilAttachment = false;
     pci.attachmentInfo.colorAttachmentCount = 1;
     pci.attachmentInfo.colorAttachmentDescriptions = &ad;
     pci.vertexShader = GPU_GetVertexShader(shaders, params->vert_shader);
@@ -127,15 +127,15 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
     Uint32 num_attribs = 0;
     SDL_GpuVertexAttribute attribs[4] = { 0 };
 
-    SDL_bool have_attr_color = SDL_FALSE;
-    SDL_bool have_attr_uv = SDL_FALSE;
+    bool have_attr_color = false;
+    bool have_attr_uv = false;
 
     switch (params->vert_shader) {
     case VERT_SHADER_TRI_TEXTURE:
-        have_attr_uv = SDL_TRUE;
+        have_attr_uv = true;
         SDL_FALLTHROUGH;
     case VERT_SHADER_TRI_COLOR:
-        have_attr_color = SDL_TRUE;
+        have_attr_color = true;
         SDL_FALLTHROUGH;
     default:
         break;
@@ -143,7 +143,7 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
 
     /* Position */
     attribs[num_attribs].location = num_attribs;
-    attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR2;
+    attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
     attribs[num_attribs].offset = bind.stride;
     bind.stride += 2 * sizeof(float);
     num_attribs++;
@@ -151,7 +151,7 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
     if (have_attr_color) {
         /* Color */
         attribs[num_attribs].location = num_attribs;
-        attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR4;
+        attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4;
         attribs[num_attribs].offset = bind.stride;
         bind.stride += 4 * sizeof(float);
         num_attribs++;
@@ -160,7 +160,7 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
     if (have_attr_uv) {
         /* UVs */
         attribs[num_attribs].location = num_attribs;
-        attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_VECTOR2;
+        attribs[num_attribs].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
         attribs[num_attribs].offset = bind.stride;
         bind.stride += 2 * sizeof(float);
         num_attribs++;
