@@ -1058,7 +1058,7 @@ static int ChoosePresentMode(SDL_GpuDevice *device, SDL_Window *window, const in
 static int GPU_SetVSync(SDL_Renderer *renderer, const int vsync)
 {
     GPU_RenderData *data = (GPU_RenderData *)renderer->internal;
-    SDL_GpuPresentMode mode;
+    SDL_GpuPresentMode mode = SDL_GPU_PRESENTMODE_VSYNC;
 
     if (ChoosePresentMode(data->device, renderer->window, vsync, &mode) != 0) {
         return -1;
