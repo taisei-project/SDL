@@ -510,7 +510,7 @@ static void Draw(
     Uint32 offset,
     SDL_GpuPrimitiveType prim)
 {
-    if (!data->state.render_pass) {
+    if (!data->state.render_pass || data->state.color_attachment.loadOp == SDL_GPU_LOADOP_CLEAR) {
         RestartRenderPass(data);
     }
 
@@ -702,11 +702,6 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
         {
             data->state.color_attachment.clearColor = GetDrawCmdColor(renderer, cmd);
             data->state.color_attachment.loadOp = SDL_GPU_LOADOP_CLEAR;
-
-            if (data->state.render_pass) {
-                RestartRenderPass(data);
-            }
-
             break;
         }
 
@@ -799,7 +794,7 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
         cmd = cmd->next;
     }
 
-    if (data->state.color_attachment.loadOp && !data->state.render_pass) {
+    if (data->state.color_attachment.loadOp == SDL_GPU_LOADOP_CLEAR) {
         RestartRenderPass(data);
     }
 
