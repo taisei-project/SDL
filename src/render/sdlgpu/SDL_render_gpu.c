@@ -215,7 +215,8 @@ static int GPU_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture, SDL_P
     }
 
     texture->internal = data;
-    SDL_GpuTextureCreateInfo tci = { 0 };
+    SDL_GpuTextureCreateInfo tci;
+    SDL_zero(tci);
     tci.format = format;
     tci.layerCountOrDepth = 1;
     tci.levelCount = 1;
@@ -250,7 +251,8 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
     Uint32 row_size = texturebpp * rect->w;
     Uint32 data_size = row_size * rect->h;
 
-    SDL_GpuTransferBufferCreateInfo tbci = { 0 };
+    SDL_GpuTransferBufferCreateInfo tbci;
+    SDL_zero(tbci);
     tbci.sizeInBytes = data_size;
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
 
@@ -281,12 +283,14 @@ static int GPU_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture,
     SDL_GpuCommandBuffer *cbuf = renderdata->state.command_buffer;
     SDL_GpuCopyPass *cpass = SDL_GpuBeginCopyPass(cbuf);
 
-    SDL_GpuTextureTransferInfo tex_src = { 0 };
+    SDL_GpuTextureTransferInfo tex_src;
+    SDL_zero(tex_src);
     tex_src.transferBuffer = tbuf;
     tex_src.imageHeight = rect->h;
     tex_src.imagePitch = rect->w;
 
-    SDL_GpuTextureRegion tex_dst = { 0 };
+    SDL_GpuTextureRegion tex_dst;
+    SDL_zero(tex_dst);
     tex_dst.texture = data->texture;
     tex_dst.x = rect->x;
     tex_dst.y = rect->y;
@@ -462,7 +466,8 @@ static SDL_GpuRenderPass *RestartRenderPass(GPU_RenderData *data)
 
 static void PushUniforms(GPU_RenderData *data, SDL_RenderCommand *cmd)
 {
-    GPU_ShaderUniformData uniforms = { 0 };
+    GPU_ShaderUniformData uniforms;
+    SDL_zero(uniforms);
     uniforms.mvp.m[0][0] = 2.0f / data->state.viewport.w;
     uniforms.mvp.m[1][1] = -2.0f / data->state.viewport.h;
     uniforms.mvp.m[2][2] = 1.0f;
@@ -494,7 +499,7 @@ static void SetViewportAndScissor(GPU_RenderData *data)
         SDL_GpuSetScissor(data->state.render_pass, &data->state.scissor);
         data->state.scissor_was_enabled = true;
     } else if (data->state.scissor_was_enabled) {
-        SDL_Rect r = { 0 };
+        SDL_Rect r;
         r.x = (int)data->state.viewport.x;
         r.y = (int)data->state.viewport.y;
         r.w = (int)data->state.viewport.w;
@@ -536,7 +541,8 @@ static void Draw(
         f_shader = FRAG_SHADER_COLOR;
     }
 
-    GPU_PipelineParameters pipe_params = { 0 };
+    GPU_PipelineParameters pipe_params;
+    SDL_zero(pipe_params);
     pipe_params.blend_mode = cmd->data.draw.blend;
     pipe_params.vert_shader = v_shader;
     pipe_params.frag_shader = f_shader;
@@ -558,13 +564,15 @@ static void Draw(
     SDL_GpuBindGraphicsPipeline(data->state.render_pass, pipe);
 
     if (tdata) {
-        SDL_GpuTextureSamplerBinding sampler_bind = { 0 };
+        SDL_GpuTextureSamplerBinding sampler_bind;
+        SDL_zero(sampler_bind);
         sampler_bind.sampler = *SamplerPointer(data, cmd->data.draw.texture_address_mode, cmd->data.draw.texture->scaleMode);
         sampler_bind.texture = tdata->texture;
         SDL_GpuBindFragmentSamplers(pass, 0, &sampler_bind, 1);
     }
 
-    SDL_GpuBufferBinding buffer_bind = { 0 };
+    SDL_GpuBufferBinding buffer_bind;
+    SDL_zero(buffer_bind);
     buffer_bind.buffer = data->vertices.buffer;
     buffer_bind.offset = offset;
 
@@ -588,7 +596,8 @@ static void ReleaseVertexBuffer(GPU_RenderData *data)
 
 static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
 {
-    SDL_GpuBufferCreateInfo bci = { 0 };
+    SDL_GpuBufferCreateInfo bci;
+    SDL_zero(bci);
     bci.sizeInBytes = size;
     bci.usageFlags = SDL_GPU_BUFFERUSAGE_VERTEX_BIT;
 
@@ -598,7 +607,8 @@ static int InitVertexBuffer(GPU_RenderData *data, Uint32 size)
         return -1;
     }
 
-    SDL_GpuTransferBufferCreateInfo tbci = { 0 };
+    SDL_GpuTransferBufferCreateInfo tbci;
+    SDL_zero(tbci);
     tbci.sizeInBytes = size;
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
 
@@ -634,10 +644,12 @@ static int UploadVertices(GPU_RenderData *data, void *vertices, size_t vertsize)
         return -1;
     }
 
-    SDL_GpuTransferBufferLocation src = { 0 };
+    SDL_GpuTransferBufferLocation src;
+    SDL_zero(src);
     src.transferBuffer = data->vertices.transfer_buf;
 
-    SDL_GpuBufferRegion dst = { 0 };
+    SDL_GpuBufferRegion dst;
+    SDL_zero(dst);
     dst.buffer = data->vertices.buffer;
     dst.size = (Uint32)vertsize;
 
@@ -837,7 +849,8 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
         return NULL;
     }
 
-    SDL_GpuTransferBufferCreateInfo tbci = { 0 };
+    SDL_GpuTransferBufferCreateInfo tbci;
+    SDL_zero(tbci);
     tbci.sizeInBytes = image_size;
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
 
@@ -849,7 +862,8 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
 
     SDL_GpuCopyPass *pass = SDL_GpuBeginCopyPass(data->state.command_buffer);
 
-    SDL_GpuTextureRegion src = { 0 };
+    SDL_GpuTextureRegion src;
+    SDL_zero(src);
     src.texture = gpu_tex;
     src.x = rect->x;
     src.y = rect->y;
@@ -857,7 +871,8 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
     src.h = rect->h;
     src.d = 1;
 
-    SDL_GpuTextureTransferInfo dst = { 0 };
+    SDL_GpuTextureTransferInfo dst;
+    SDL_zero(dst);
     dst.transferBuffer = tbuf;
     dst.imageHeight = rect->h;
     dst.imagePitch = rect->w;
@@ -893,7 +908,8 @@ static SDL_Surface *GPU_RenderReadPixels(SDL_Renderer *renderer, const SDL_Rect 
 
 static int CreateBackbuffer(GPU_RenderData *data, Uint32 w, Uint32 h, SDL_GpuTextureFormat fmt)
 {
-    SDL_GpuTextureCreateInfo tci = { 0 };
+    SDL_GpuTextureCreateInfo tci;
+    SDL_zero(tci);
     tci.width = w;
     tci.height = h;
     tci.format = fmt;
@@ -925,12 +941,14 @@ static int GPU_RenderPresent(SDL_Renderer *renderer)
     SDL_GpuTextureFormat swapchain_fmt = SDL_GpuGetSwapchainTextureFormat(data->device, renderer->window);
 
     if (swapchain_w != data->backbuffer.width || swapchain_h != data->backbuffer.height || swapchain_fmt != data->backbuffer.format) {
-        SDL_GpuBlitRegion src = { 0 };
+        SDL_GpuBlitRegion src;
+        SDL_zero(src);
         src.texture = data->backbuffer.texture;
         src.w = data->backbuffer.width;
         src.h = data->backbuffer.height;
 
-        SDL_GpuBlitRegion dst = { 0 };
+        SDL_GpuBlitRegion dst;
+        SDL_zero(dst);
         dst.texture = swapchain;
         dst.w = swapchain_w;
         dst.h = swapchain_h;
@@ -939,10 +957,12 @@ static int GPU_RenderPresent(SDL_Renderer *renderer)
         SDL_GpuReleaseTexture(data->device, data->backbuffer.texture);
         CreateBackbuffer(data, swapchain_w, swapchain_h, swapchain_fmt);
     } else {
-        SDL_GpuTextureLocation src = { 0 };
+        SDL_GpuTextureLocation src;
+        SDL_zero(src);
         src.texture = data->backbuffer.texture;
 
-        SDL_GpuTextureLocation dst = { 0 };
+        SDL_GpuTextureLocation dst;
+        SDL_zero(dst);
         dst.texture = swapchain;
 
         SDL_GpuCopyPass *pass = SDL_GpuBeginCopyPass(data->state.command_buffer);
@@ -1120,7 +1140,8 @@ static int InitSamplers(GPU_RenderData *data)
     };
 
     for (Uint32 i = 0; i < SDL_arraysize(configs); ++i) {
-        SDL_GpuSamplerCreateInfo sci = { 0 };
+        SDL_GpuSamplerCreateInfo sci;
+        SDL_zero(sci);
         sci.maxAnisotropy = configs[i].gpu.anisotropy;
         sci.anisotropyEnable = configs[i].gpu.anisotropy > 0;
         sci.addressModeU = sci.addressModeV = sci.addressModeW = configs[i].gpu.address_mode;

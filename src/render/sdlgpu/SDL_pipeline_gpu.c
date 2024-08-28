@@ -95,7 +95,8 @@ void GPU_DestroyPipelineCache(GPU_PipelineCache *cache)
 
 static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders *shaders, const GPU_PipelineParameters *params)
 {
-    SDL_GpuColorAttachmentDescription ad = { 0 };
+    SDL_GpuColorAttachmentDescription ad;
+    SDL_zero(ad);
     ad.format = params->attachment_format;
 
     SDL_BlendMode blend = params->blend_mode;
@@ -108,7 +109,8 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
     ad.blendState.dstColorBlendFactor = GPU_ConvertBlendFactor(SDL_GetBlendModeDstColorFactor(blend));
     ad.blendState.srcColorBlendFactor = GPU_ConvertBlendFactor(SDL_GetBlendModeSrcColorFactor(blend));
 
-    SDL_GpuGraphicsPipelineCreateInfo pci = { 0 };
+    SDL_GpuGraphicsPipelineCreateInfo pci;
+    SDL_zero(pci);
     pci.attachmentInfo.hasDepthStencilAttachment = false;
     pci.attachmentInfo.colorAttachmentCount = 1;
     pci.attachmentInfo.colorAttachmentDescriptions = &ad;
@@ -122,10 +124,12 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
     pci.rasterizerState.fillMode = SDL_GPU_FILLMODE_FILL;
     pci.rasterizerState.frontFace = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
 
-    SDL_GpuVertexBinding bind = { 0 };
+    SDL_GpuVertexBinding bind;
+    SDL_zero(bind);
 
     Uint32 num_attribs = 0;
-    SDL_GpuVertexAttribute attribs[4] = { 0 };
+    SDL_GpuVertexAttribute attribs[4];
+    SDL_zero(attribs);
 
     bool have_attr_color = false;
     bool have_attr_uv = false;
@@ -176,7 +180,8 @@ static SDL_GpuGraphicsPipeline *MakePipeline(SDL_GpuDevice *device, GPU_Shaders 
 
 static GPU_PipelineCacheKey MakePipelineCacheKey(const GPU_PipelineParameters *params)
 {
-    GPU_PipelineCacheKey key = { 0 };
+    GPU_PipelineCacheKey key;
+    SDL_zero(key);
     key.as_struct.blend_mode = params->blend_mode;
     key.as_struct.frag_shader = params->frag_shader;
     key.as_struct.vert_shader = params->vert_shader;
