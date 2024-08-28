@@ -73,6 +73,7 @@ typedef struct GPU_RenderData
         SDL_Rect scissor;
         SDL_FColor draw_color;
         bool scissor_enabled;
+        bool scissor_was_enabled;
         GPU_ShaderUniformData shader_data;
     } state;
 
@@ -453,15 +454,8 @@ static SDL_GpuRenderPass *RestartRenderPass(GPU_RenderData *data)
     data->state.render_pass = SDL_GpuBeginRenderPass(
         data->state.command_buffer, &data->state.color_attachment, 1, NULL);
 
-    if (data->state.viewport.w > 0 && data->state.viewport.h > 0) {
-        SDL_GpuSetViewport(data->state.render_pass, &data->state.viewport);
-    }
-
-    if (data->state.scissor_enabled) {
-        SDL_GpuSetScissor(data->state.render_pass, &data->state.scissor);
-    }
-
     data->state.color_attachment.loadOp = SDL_GPU_LOADOP_LOAD;
+    data->state.scissor_was_enabled = false;
 
     return data->state.render_pass;
 }
@@ -490,6 +484,24 @@ static SDL_GpuSampler **SamplerPointer(
     GPU_RenderData *data, SDL_TextureAddressMode address_mode, SDL_ScaleMode scale_mode)
 {
     return &data->samplers[scale_mode][address_mode - 1];
+}
+
+static void SetViewportAndScissor(GPU_RenderData *data)
+{
+    SDL_GpuSetViewport(data->state.render_pass, &data->state.viewport);
+
+    if (data->state.scissor_enabled) {
+        SDL_GpuSetScissor(data->state.render_pass, &data->state.scissor);
+        data->state.scissor_was_enabled = true;
+    } else if (data->state.scissor_was_enabled) {
+        SDL_Rect r = { 0 };
+        r.x = (int)data->state.viewport.x;
+        r.y = (int)data->state.viewport.y;
+        r.w = (int)data->state.viewport.w;
+        r.h = (int)data->state.viewport.h;
+        SDL_GpuSetScissor(data->state.render_pass, &r);
+        data->state.scissor_was_enabled = false;
+    }
 }
 
 static void Draw(
@@ -542,6 +554,7 @@ static void Draw(
         return;
     }
 
+    SetViewportAndScissor(data);
     SDL_GpuBindGraphicsPipeline(data->state.render_pass, pipe);
 
     if (tdata) {
@@ -671,13 +684,6 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
             data->state.viewport.y = viewport->y;
             data->state.viewport.w = viewport->w;
             data->state.viewport.h = viewport->h;
-            data->state.viewport.minDepth = 0;
-            data->state.viewport.maxDepth = 1;
-
-            if (data->state.render_pass && viewport->w > 0 && viewport->h > 0) {
-                SDL_GpuSetViewport(data->state.render_pass, &data->state.viewport);
-            }
-
             break;
         }
 
@@ -689,11 +695,6 @@ static int GPU_RunCommandQueue(SDL_Renderer *renderer, SDL_RenderCommand *cmd, v
             data->state.scissor.w = rect->w;
             data->state.scissor.h = rect->h;
             data->state.scissor_enabled = cmd->data.cliprect.enabled;
-
-            if (data->state.render_pass && cmd->data.cliprect.enabled) {
-                SDL_GpuSetScissor(data->state.render_pass, &data->state.scissor);
-            }
-
             break;
         }
 
@@ -1246,7 +1247,8 @@ static int GPU_CreateRenderer(SDL_Renderer *renderer, SDL_Window *window, SDL_Pr
     data->state.draw_color.g = 1.0f;
     data->state.draw_color.b = 1.0f;
     data->state.draw_color.a = 1.0f;
-
+    data->state.viewport.minDepth = 0;
+    data->state.viewport.maxDepth = 1;
     data->state.command_buffer = SDL_GpuAcquireCommandBuffer(data->device);
 
     int w, h;
