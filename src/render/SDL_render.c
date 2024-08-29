@@ -136,11 +136,11 @@ static const SDL_RenderDriver *render_drivers[] = {
 #if SDL_VIDEO_RENDER_VULKAN
     &VULKAN_RenderDriver,
 #endif
+#if SDL_VIDEO_RENDER_SW
+    &SW_RenderDriver,
+#endif
 #if SDL_VIDEO_RENDER_GPU
     &GPU_RenderDriver,
-#endif
-#if SDL_VIDEO_RENDER_SW
-    &SW_RenderDriver
 #endif
 };
 #endif // !SDL_RENDER_DISABLED
