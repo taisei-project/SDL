@@ -1311,5 +1311,7 @@ if get_option('test')
     subdir('test')
 endif
 
-pkg = import('pkgconfig')
-pkg.generate(sdl2, subdirs: 'SDL2')
+if not meson.is_subproject()
+    pkg = import('pkgconfig')
+    pkg.generate(sdl2, subdirs: 'SDL2')
+endif
