@@ -1020,8 +1020,6 @@ elif platform_is_windows
         if cdata.get('HAVE_XINPUT_H', 0) == 1 and not get_option('use_joystick_xinput').disabled()
             sys_joystick += 'xinput'
             sys_haptic += 'xinput'
-            cdata.set('SDL_JOYSTICK_XINPUT', 1)
-            cdata.set('SDL_HAPTIC_XINPUT', 1)
         endif
 
         dinput = cc.find_library('dinput8', required : get_option('use_joystick_dinput'))
