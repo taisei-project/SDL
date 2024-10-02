@@ -5,7 +5,7 @@ c_sources += configure_file(
     output: 'SDL_config.h',
     format: 'cmake@',
     configuration: cdata,
-    install: true,
+    install: not meson.is_subproject(),
     install_dir: incdir,
     install_tag: 'devel',
 )
@@ -96,7 +96,7 @@ foreach header : headers
     input: header,
     output: header,
     copy: true,
-    install: true,
+    install: not meson.is_subproject(),
     install_dir: incdir,
     install_tag: 'devel',
   )
