@@ -3419,7 +3419,7 @@ elseif(NINTENDO_SWITCH)
 
     CheckEGL()
     if(HAVE_OPENGL_EGL)
-      sdl_link_dependency(opengl LIBS EGL glapi drm_nouveau)
+      sdl_link_dependency(opengl LIBS EGL stdc++ glapi drm_nouveau)
     endif()
 
     CheckOpenGLES()
