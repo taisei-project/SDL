@@ -22,18 +22,24 @@
 #ifndef SDL_switchaudio_h_
 #define SDL_switchaudio_h_
 
+#include <switch.h>
 #include "../SDL_sysaudio.h"
 
-#include <switch.h>
+#define NUM_BUFFERS 4
 
 struct SDL_PrivateAudioData
 {
-    AudioDriver driver;
-    AudioDriverWaveBuf buffer[2];
-    void *buffer_tmp;
-    void *pool;
-    bool audr_device;
-    bool audr_driver;
+    AudioOutBuffer buffer[NUM_BUFFERS];
+    AudioOutBuffer *released_out_buffer;
+    u32 released_out_count;
+    /* The raw allocated mixing buffer. */
+    Uint8   *rawbuf;
+    /* Individual mixing buffers. */
+    void *out_buffers[NUM_BUFFERS];
+    /* Index of the next available mixing buffer. */
+    int     next_buffer;
+    /* Currently playing buffer */
+    int     cur_buffer;
 };
 
 #endif /* SDL_switchaudio_h_ */
